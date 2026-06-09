@@ -1,0 +1,95 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { MockDatabase, AccessLog, Member } from '../mock-db';
+
+@Injectable()
+export class BiometricsService {
+  constructor(private db: MockDatabase) {}
+
+  async scanFingerprint(body: { memberId?: string; forceResult?: string }): Promise<any> {
+    // Simular el retraso del sensor biométrico (1 segundo)
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    let matched = true;
+    let confidence = Math.floor(88 + Math.random() * 11); // 88% - 99%
+    let accessGranted = false;
+    let failureReason: string | undefined = undefined;
+    let member: Member | undefined = undefined;
+
+    if (body.forceResult === 'denied_unknown') {
+      matched = false;
+      confidence = Math.floor(30 + Math.random() * 20); // Baja confianza
+      failureReason = 'HUELLA_NO_RECONOCIDA';
+    } else {
+      // Buscar miembro
+      if (body.memberId) {
+        member = this.db.members.find((m) => m.id === body.memberId);
+      } else {
+        // Seleccionar miembro aleatorio
+        const idx = Math.floor(Math.random() * this.db.members.length);
+        member = this.db.members[idx];
+      }
+
+      if (!member) {
+        matched = false;
+        confidence = 12;
+        failureReason = 'MIEMBRO_NO_ENCONTRADO';
+      } else {
+        // Validar estatus de membresía activa
+        const today = new Date().toISOString().split('T')[0];
+        const activeMembership = this.db.memberships.find(
+          (m) => m.memberId === member!.id && m.status === 'ACTIVE',
+        );
+
+        if (body.forceResult === 'denied_expired') {
+          accessGranted = false;
+          failureReason = 'MEMBRESIA_EXPIRADA';
+        } else if (!activeMembership) {
+          accessGranted = false;
+          failureReason = 'MEMBRESIA_EXPIRADA';
+        } else if (activeMembership.endDate < today) {
+          accessGranted = false;
+          failureReason = 'MEMBRESIA_EXPIRADA';
+        } else {
+          accessGranted = true;
+        }
+      }
+    }
+
+    // Registrar bitácora de acceso
+    const newLog: AccessLog = {
+      id: crypto.randomUUID(),
+      memberId: member?.id,
+      memberName: member ? `${member.firstName} ${member.lastName}` : 'Persona Desconocida',
+      memberNumber: member?.memberNumber || 'DESCONOCIDO',
+      photoUrl: member?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Unknown',
+      membershipType: member
+        ? this.db.memberships.find((ms) => ms.memberId === member!.id)?.planName || 'Sin Plan'
+        : 'N/A',
+      membershipEndDate: member
+        ? this.db.memberships.find((ms) => ms.memberId === member!.id)?.endDate || 'N/A'
+        : 'N/A',
+      accessGranted,
+      failureReason,
+      scannedAt: new Date().toISOString(),
+    };
+
+    this.db.accessLogs.unshift(newLog); // Añadir al inicio
+
+    return {
+      memberId: member?.id || null,
+      memberName: member ? `${member.firstName} ${member.lastName}` : null,
+      memberNumber: member?.memberNumber || null,
+      photoUrl: member?.photoUrl || null,
+      membershipType: newLog.membershipType,
+      membershipEndDate: newLog.membershipEndDate,
+      matched,
+      confidence,
+      accessGranted,
+      failureReason,
+    };
+  }
+
+  getAccessLogs(): AccessLog[] {
+    return this.db.accessLogs;
+  }
+}

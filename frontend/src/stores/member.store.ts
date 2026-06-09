@@ -1,0 +1,168 @@
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+
+export const useMemberStore = defineStore('member', () => {
+  const members = ref<any[]>([]);
+  const selectedMember = ref<any | null>(null);
+  const plans = ref<any[]>([]);
+  const activeMemberships = ref<any[]>([]);
+  const activePayments = ref<any[]>([]);
+
+  const API_URL = 'http://localhost:3000';
+
+  function getHeaders() {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+
+  async function fetchMembers(query?: string) {
+    try {
+      const url = query ? `${API_URL}/members/search?q=${query}` : `${API_URL}/members`;
+      const res = await fetch(url, { headers: getHeaders() });
+      if (res.ok) {
+        members.value = await res.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function fetchPlans() {
+    try {
+      const res = await fetch(`${API_URL}/memberships/plans`, { headers: getHeaders() });
+      if (res.ok) {
+        plans.value = await res.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function fetchMemberDetail(id: string) {
+    try {
+      const memberRes = await fetch(`${API_URL}/members/${id}`, { headers: getHeaders() });
+      if (memberRes.ok) {
+        selectedMember.value = await memberRes.json();
+      }
+
+      // Fetch memberships
+      const msRes = await fetch(`${API_URL}/memberships/member/${id}`, { headers: getHeaders() });
+      if (msRes.ok) {
+        activeMemberships.value = await msRes.json();
+      }
+
+      // Fetch payments
+      const payRes = await fetch(`${API_URL}/payments/member/${id}`, { headers: getHeaders() });
+      if (payRes.ok) {
+        activePayments.value = await payRes.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function createMember(member: any) {
+    try {
+      const res = await fetch(`${API_URL}/members`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(member),
+      });
+      if (res.ok) {
+        await fetchMembers();
+        return await res.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  }
+
+  async function updateMember(id: string, member: any) {
+    try {
+      const res = await fetch(`${API_URL}/members/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(member),
+      });
+      if (res.ok) {
+        await fetchMemberDetail(id);
+        await fetchMembers();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  async function deactivateMember(id: string) {
+    try {
+      const res = await fetch(`${API_URL}/members/${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        selectedMember.value = null;
+        await fetchMembers();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  async function assignMembership(memberId: string, planId: string) {
+    try {
+      const res = await fetch(`${API_URL}/memberships/assign`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ memberId, planId }),
+      });
+      if (res.ok) {
+        await fetchMemberDetail(memberId);
+        return await res.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  }
+
+  async function registerPayment(payment: any) {
+    try {
+      const res = await fetch(`${API_URL}/payments`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payment),
+      });
+      if (res.ok) {
+        await fetchMemberDetail(payment.memberId);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  return {
+    members,
+    selectedMember,
+    plans,
+    activeMemberships,
+    activePayments,
+    fetchMembers,
+    fetchPlans,
+    fetchMemberDetail,
+    createMember,
+    updateMember,
+    deactivateMember,
+    assignMembership,
+    registerPayment,
+  };
+});
