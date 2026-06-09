@@ -102,15 +102,15 @@ async function triggerDeactivate() {
           
           <!-- Banner de Ficha -->
           <div class="h-28 bg-gradient-to-r from-black to-neutral-900 p-6 flex items-end justify-between text-white relative">
-            <div class="flex items-center space-x-4 translate-y-10">
+            <div class="flex items-center space-x-4">
               <img 
                 :src="memberStore.selectedMember.photoUrl || ''" 
                 alt="Avatar Miembro" 
-                class="w-20 h-20 rounded-xl bg-white border border-neutral-200 shadow object-cover" 
+                class="w-20 h-20 rounded-xl bg-white border border-neutral-200 shadow object-cover translate-y-10" 
               />
-              <div class="pt-4 space-y-0.5">
-                <h3 class="text-lg font-bold text-neutral-950">{{ memberStore.selectedMember.firstName }} {{ memberStore.selectedMember.lastName }}</h3>
-                <p class="text-xs text-neutral-500">Número de Miembro: {{ memberStore.selectedMember.memberNumber }}</p>
+              <div class="space-y-1">
+                <h3 class="text-lg font-bold text-[#FFA624]">{{ memberStore.selectedMember.firstName }} {{ memberStore.selectedMember.lastName }}</h3>
+                <p class="text-xs text-white">Número de Miembro: {{ memberStore.selectedMember.memberNumber }}</p>
               </div>
             </div>
 
