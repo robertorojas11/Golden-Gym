@@ -5,10 +5,11 @@ import { MembershipsModule } from './memberships/memberships.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BiometricsModule } from './biometrics/biometrics.module';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { MockDatabase } from './mock-db';
+import { MockDbModule } from './mock-db.module';
 
 @Module({
   imports: [
+    MockDbModule, // Shared global singleton database module
     AuthModule,
     MembersModule,
     MembershipsModule,
@@ -16,6 +17,5 @@ import { MockDatabase } from './mock-db';
     BiometricsModule,
     AnalyticsModule,
   ],
-  providers: [MockDatabase],
 })
 export class AppModule {}

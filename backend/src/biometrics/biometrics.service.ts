@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { MockDatabase, AccessLog, Member } from '../mock-db';
 
 @Injectable()
@@ -57,7 +58,7 @@ export class BiometricsService {
 
     // Registrar bitácora de acceso
     const newLog: AccessLog = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       memberId: member?.id,
       memberName: member ? `${member.firstName} ${member.lastName}` : 'Persona Desconocida',
       memberNumber: member?.memberNumber || 'DESCONOCIDO',

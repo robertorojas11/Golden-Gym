@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { MockDatabase, Member } from '../mock-db';
 
 @Injectable()
@@ -33,7 +34,7 @@ export class MembersService {
   create(memberData: Partial<Member>): Member {
     const nextNum = 1000 + this.db.members.length + 1;
     const newMember: Member = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       memberNumber: `MEM-${nextNum}`,
       firstName: memberData.firstName || '',
       lastName: memberData.lastName || '',
