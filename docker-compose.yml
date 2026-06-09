@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: goldengym-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: gym_admin
+      POSTGRES_PASSWORD: gym_password_secure_local_188
+      POSTGRES_DB: goldengym_access
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./database/seeds.sql:/docker-entrypoint-initdb.d/2-seeds.sql
+    networks:
+      - gym-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: goldengym-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: gym_admin
+      DB_PASSWORD: gym_password_secure_local_188
+      DB_NAME: goldengym_access
+      JWT_SECRET: super_secure_local_key_889218
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    networks:
+      - gym-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    container_name: goldengym-frontend
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - gym-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: goldengym-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - gym-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  gym-network:
+    driver: bridge
