@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { MockDatabase, Membership, MembershipPlan } from '../mock-db';
 
 @Injectable()
@@ -46,7 +47,7 @@ export class MembershipsService {
     endDate.setDate(startDate.getDate() + plan.durationDays);
 
     const newMembership: Membership = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       memberId,
       planId,
       planName: plan.name,

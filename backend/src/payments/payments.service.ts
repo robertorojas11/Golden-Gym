@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { MockDatabase, Payment, Membership } from '../mock-db';
 
 @Injectable()
@@ -34,7 +35,7 @@ export class PaymentsService {
     if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000004') methodName = 'Transfer';
 
     const newPayment: Payment = {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       memberId: paymentData.memberId,
       membershipId: paymentData.membershipId,
       paymentMethodId: paymentData.paymentMethodId,

@@ -1,11 +1,10 @@
 import { Module, Global } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { MockDatabase } from '../mock-db';
 
 @Global()
 @Module({
-  providers: [AuthService, MockDatabase],
+  providers: [AuthService],
   controllers: [AuthController],
   exports: [AuthService],
 })
