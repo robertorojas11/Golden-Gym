@@ -16,7 +16,7 @@ function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#F2F2F2] flex flex-col font-sans">
+  <div class="min-h-screen bg-neutral-950 flex flex-col font-sans">
     
     <!-- ENCABEZADO GLOBAL: 70px a 90px de alto fijo, fondo negro -->
     <header 
