@@ -317,7 +317,7 @@ function formatNumber(val: number) {
                 <!-- Tooltip -->
                 <div class="absolute bottom-full mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-50">
                   <div class="bg-[#1a1a1a] text-white text-[10px] py-1 px-2 rounded shadow-lg border border-neutral-800 whitespace-nowrap">
-                    {{ getFullDayName(item.date) }}: <span class="font-bold text-[#FA2F2A]">{{ item.count }}</span>
+                    {{ getFullDayName(item.date) }}: <span class="font-bold text-[#EF9F27]">{{ item.count }}</span>
                   </div>
                   <div class="w-2 h-2 bg-[#1a1a1a] border-r border-b border-neutral-800 transform rotate-45 -mt-1"></div>
                 </div>
@@ -374,14 +374,14 @@ function formatNumber(val: number) {
                 <!-- Tooltip -->
                 <div class="absolute bottom-full mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-50">
                   <div class="bg-[#1a1a1a] text-white text-[10px] py-1 px-2 rounded shadow-lg border border-neutral-800 whitespace-nowrap">
-                    {{ getFullMonthName(item.month) }}: <span class="font-bold text-[#FA2F2A]">${{ formatNumber(item.amount) }} MXN</span>
+                    {{ getFullMonthName(item.month) }}: <span class="font-bold text-[#EF9F27]">${{ formatNumber(item.amount) }} MXN</span>
                   </div>
                   <div class="w-2 h-2 bg-[#1a1a1a] border-r border-b border-neutral-800 transform rotate-45 -mt-1"></div>
                 </div>
                 
                 <!-- The actual bar -->
                 <div 
-                  class="w-full max-w-[16px] bg-gradient-to-t from-red-950 to-[#FA2F2A] group-hover:to-red-400 rounded-t transition-all duration-300"
+                  class="w-full max-w-[16px] bg-gradient-to-t from-[#936c1e] to-[#EF9F27] group-hover:to-[#f5b041] rounded-t transition-all duration-300"
                   :style="{ height: `${(item.amount / 10000) * 100}%` }"
                 ></div>
                 
