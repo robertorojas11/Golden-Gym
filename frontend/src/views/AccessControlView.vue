@@ -56,7 +56,7 @@ onUnmounted(() => {
 
             <!-- Digital Clock Section -->
             <div class="flex flex-col items-center justify-center py-2">
-              <div class="text-5xl md:text-6xl font-mono tracking-widest text-[#FA2F2A] font-bold glow-red select-none">
+              <div class="text-5xl md:text-6xl font-mono tracking-widest text-[#EF9F27] font-bold glow-gold select-none">
                 {{ timeString }}
               </div>
               <div class="text-xs text-neutral-400 uppercase font-semibold tracking-widest mt-2 font-mono">
@@ -301,7 +301,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.glow-red {
-  text-shadow: 0 0 10px rgba(250, 47, 42, 0.55), 0 0 20px rgba(250, 47, 42, 0.2);
+.glow-gold {
+  text-shadow: 0 0 10px rgba(239, 159, 39, 0.55), 0 0 20px rgba(239, 159, 39, 0.2);
 }
 </style>

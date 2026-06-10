@@ -346,10 +346,10 @@ function formatNumber(val: number) {
           <div class="flex flex-1 items-stretch pt-2">
             <!-- Y-Axis Ticks -->
             <div class="flex flex-col justify-between text-[9px] text-neutral-500 pr-2 pb-6 select-none w-12 text-right font-mono">
-              <span>$40,000</span>
-              <span>$30,000</span>
-              <span>$20,000</span>
               <span>$10,000</span>
+              <span>$7,500</span>
+              <span>$5,000</span>
+              <span>$2,500</span>
               <span>$0</span>
             </div>
             
@@ -382,7 +382,7 @@ function formatNumber(val: number) {
                 <!-- The actual bar -->
                 <div 
                   class="w-full max-w-[16px] bg-gradient-to-t from-red-950 to-[#FA2F2A] group-hover:to-red-400 rounded-t transition-all duration-300"
-                  :style="{ height: `${(item.amount / 40000) * 100}%` }"
+                  :style="{ height: `${(item.amount / 10000) * 100}%` }"
                 ></div>
                 
                 <!-- X-Axis Label -->
