@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useMemberStore } from '../stores/member.store';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -40,14 +40,88 @@ async function saveNote() {
   }
 }
 
-async function triggerDeactivate() {
+// Destructive confirmation modal state
+const showDeactivateModal = ref(false);
+const isDeactivating = ref(false);
+const confirmBtnRef = ref<HTMLElement | null>(null);
+const cancelBtnRef = ref<HTMLElement | null>(null);
+
+// Success toast state
+const toastMessage = ref('');
+const showToast = ref(false);
+
+function triggerToast(message: string) {
+  toastMessage.value = message;
+  showToast.value = true;
+  setTimeout(() => {
+    showToast.value = false;
+  }, 3500);
+}
+
+function openDeactivateModal() {
+  showDeactivateModal.value = true;
+}
+
+function closeDeactivateModal() {
+  showDeactivateModal.value = false;
+}
+
+watch(showDeactivateModal, (newVal) => {
+  if (newVal) {
+    window.addEventListener('keydown', handleModalKeys);
+    setTimeout(() => {
+      cancelBtnRef.value?.focus();
+    }, 50);
+  } else {
+    window.removeEventListener('keydown', handleModalKeys);
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleModalKeys);
+});
+
+function handleModalKeys(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    closeDeactivateModal();
+  }
+  if (e.key === 'Tab') {
+    const activeEl = document.activeElement;
+    if (e.shiftKey) {
+      if (activeEl === cancelBtnRef.value) {
+        confirmBtnRef.value?.focus();
+        e.preventDefault();
+      }
+    } else {
+      if (activeEl === confirmBtnRef.value) {
+        cancelBtnRef.value?.focus();
+        e.preventDefault();
+      }
+    }
+  }
+}
+
+function triggerDeactivate() {
   if (!memberStore.selectedMember) return;
-  const ok = confirm(`¿Estás seguro de que deseas desactivar al miembro ${memberStore.selectedMember.firstName}?`);
-  if (ok) {
+  openDeactivateModal();
+}
+
+async function confirmDeactivate() {
+  if (!memberStore.selectedMember) return;
+  isDeactivating.value = true;
+  try {
     const success = await memberStore.deactivateMember(memberStore.selectedMember.id);
     if (success) {
-      alert('Miembro desactivado correctamente');
+      triggerToast(`Miembro ${memberStore.selectedMember.firstName} desactivado correctamente.`);
+      closeDeactivateModal();
+    } else {
+      triggerToast('Error al desactivar el miembro.');
     }
+  } catch (error) {
+    console.error(error);
+    triggerToast('Ocurrió un error inesperado.');
+  } finally {
+    isDeactivating.value = false;
   }
 }
 
@@ -436,6 +510,63 @@ async function handleSaveMembership() {
           </div>
         </form>
       </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN DE DESACTIVACIÓN -->
+    <div 
+      v-if="showDeactivateModal" 
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deactivate-dialog-title"
+    >
+      <div class="bg-neutral-950 border border-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+        <div class="space-y-2 text-center md:text-left">
+          <h3 id="deactivate-dialog-title" class="text-base font-bold text-white uppercase tracking-widest flex items-center justify-center md:justify-start space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>Desactivar Miembro</span>
+          </h3>
+          <p class="text-sm text-neutral-200 pt-2">
+            ¿Estás seguro de que deseas desactivar al miembro <strong class="text-white font-bold">{{ memberStore.selectedMember?.firstName }} {{ memberStore.selectedMember?.lastName }}</strong>?
+          </p>
+          <p class="text-xs text-neutral-400">
+            Esta acción revocará su estatus activo y sus accesos al gimnasio hasta que se vuelva a activar manualmente.
+          </p>
+        </div>
+
+        <div class="flex space-x-3 pt-4 border-t border-neutral-900">
+          <button 
+            ref="cancelBtnRef"
+            type="button" 
+            @click="closeDeactivateModal"
+            class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 py-2.5 rounded-xl font-bold transition-all border border-neutral-800 text-xs"
+          >
+            Cancelar
+          </button>
+          <button 
+            ref="confirmBtnRef"
+            type="button"
+            @click="confirmDeactivate"
+            :disabled="isDeactivating"
+            class="flex-1 bg-red-650 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold shadow-sm transition-all text-xs disabled:opacity-55"
+          >
+            {{ isDeactivating ? 'Procesando...' : 'Sí, Desactivar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICACIÓN -->
+    <div 
+      v-if="showToast" 
+      class="fixed bottom-6 right-6 bg-[#FA2F2A] border border-red-500/30 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-center space-x-3 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 font-mono text-xs"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ toastMessage }}</span>
     </div>
 
   </div>
