@@ -174,6 +174,41 @@ async function submitRegisterPayment() {
     fetchDashboardData();
   }
 }
+
+function getFullDayName(abbr: string) {
+  const days: Record<string, string> = {
+    'Lun': 'Lunes',
+    'Mar': 'Martes',
+    'Mié': 'Miércoles',
+    'Jue': 'Jueves',
+    'Vie': 'Viernes',
+    'Sáb': 'Sábado',
+    'Dom': 'Domingo'
+  };
+  return days[abbr] || abbr;
+}
+
+function getFullMonthName(abbr: string) {
+  const months: Record<string, string> = {
+    'Ene': 'Enero',
+    'Feb': 'Febrero',
+    'Mar': 'Marzo',
+    'Abr': 'Abril',
+    'May': 'Mayo',
+    'Jun': 'Junio',
+    'Jul': 'Julio',
+    'Ago': 'Agosto',
+    'Sep': 'Septiembre',
+    'Oct': 'Octubre',
+    'Nov': 'Noviembre',
+    'Dic': 'Diciembre'
+  };
+  return months[abbr] || abbr;
+}
+
+function formatNumber(val: number) {
+  return val.toLocaleString('es-MX');
+}
 </script>
 
 <template>
@@ -246,38 +281,114 @@ async function submitRegisterPayment() {
       
       <!-- Chart 1: Accesses per Day -->
       <div class="premium-card p-6 bg-white">
-        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-6">Tránsito Diario (Entradas)</h3>
-        <div class="h-44 flex items-end justify-between px-2 pt-2 border-b border-neutral-100">
-          <div 
-            v-for="item in charts.dailyAccesses" 
-            :key="item.date" 
-            class="flex flex-col items-center space-y-2 flex-grow mx-2"
-          >
-            <div class="text-[10px] font-semibold text-neutral-400">{{ item.count }}</div>
-            <div 
-              class="w-full bg-neutral-900 rounded-t"
-              :style="{ height: `${(item.count / 35) * 120}px` }"
-            ></div>
-            <div class="text-[10px] font-medium text-neutral-500 pt-1">{{ item.date }}</div>
+        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Tránsito Diario (Entradas)</h3>
+        <div class="relative flex flex-col h-44 mt-4">
+          <!-- Y-Axis label -->
+          <div class="absolute -top-5 left-0 text-[9px] font-semibold text-neutral-400">Entradas</div>
+          
+          <div class="flex flex-1 items-stretch pt-2">
+            <!-- Y-Axis Ticks -->
+            <div class="flex flex-col justify-between text-[9px] text-neutral-500 pr-2 pb-6 select-none w-6 text-right font-mono">
+              <span>40</span>
+              <span>30</span>
+              <span>20</span>
+              <span>10</span>
+              <span>0</span>
+            </div>
+            
+            <!-- Chart Grid & Bars -->
+            <div class="relative flex-1 flex items-end justify-between px-1 pb-6 border-b border-l border-neutral-800">
+              <!-- Gridlines -->
+              <div class="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full"></div>
+              </div>
+              
+              <!-- Bars -->
+              <div 
+                v-for="item in charts.dailyAccesses" 
+                :key="item.date" 
+                class="group relative flex flex-col items-center flex-grow mx-1 z-10 cursor-pointer"
+                style="height: 100%; justify-content: flex-end;"
+              >
+                <!-- Tooltip -->
+                <div class="absolute bottom-full mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-50">
+                  <div class="bg-[#1a1a1a] text-white text-[10px] py-1 px-2 rounded shadow-lg border border-neutral-800 whitespace-nowrap">
+                    {{ getFullDayName(item.date) }}: <span class="font-bold text-[#FA2F2A]">{{ item.count }}</span>
+                  </div>
+                  <div class="w-2 h-2 bg-[#1a1a1a] border-r border-b border-neutral-800 transform rotate-45 -mt-1"></div>
+                </div>
+                
+                <!-- The actual bar -->
+                <div 
+                  class="w-full max-w-[24px] bg-gradient-to-t from-neutral-850 to-neutral-400 group-hover:to-[#FA2F2A] rounded-t transition-all duration-300"
+                  :style="{ height: `${(item.count / 40) * 100}%` }"
+                ></div>
+                
+                <!-- X-Axis Label -->
+                <div class="absolute top-full pt-1 text-[9px] font-medium text-neutral-400">{{ item.date }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Chart 2: Monthly Revenue -->
       <div class="premium-card p-6 bg-white">
-        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-6">Ingreso Mensual (MXN)</h3>
-        <div class="h-44 flex items-end justify-between px-2 pt-2 border-b border-neutral-100">
-          <div 
-            v-for="item in charts.monthlyRevenue" 
-            :key="item.month" 
-            class="flex flex-col items-center space-y-2 flex-grow mx-2"
-          >
-            <div class="text-[10px] font-semibold text-neutral-400">${{ item.amount }}</div>
-            <div 
-              class="w-full bg-[#FA2F2A] rounded-t"
-              :style="{ height: `${(item.amount / 35000) * 120}px` }"
-            ></div>
-            <div class="text-[10px] font-medium text-neutral-500 pt-1">{{ item.month }}</div>
+        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Ingreso Mensual (MXN)</h3>
+        <div class="relative flex flex-col h-44 mt-4">
+          <!-- Y-Axis label -->
+          <div class="absolute -top-5 left-0 text-[9px] font-semibold text-neutral-400">MXN</div>
+          
+          <div class="flex flex-1 items-stretch pt-2">
+            <!-- Y-Axis Ticks -->
+            <div class="flex flex-col justify-between text-[9px] text-neutral-500 pr-2 pb-6 select-none w-12 text-right font-mono">
+              <span>$40,000</span>
+              <span>$30,000</span>
+              <span>$20,000</span>
+              <span>$10,000</span>
+              <span>$0</span>
+            </div>
+            
+            <!-- Chart Grid & Bars -->
+            <div class="relative flex-1 flex items-end justify-between px-1 pb-6 border-b border-l border-neutral-800">
+              <!-- Gridlines -->
+              <div class="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full border-t border-neutral-800/40"></div>
+                <div class="w-full"></div>
+              </div>
+              
+              <!-- Bars -->
+              <div 
+                v-for="item in charts.monthlyRevenue" 
+                :key="item.month" 
+                class="group relative flex flex-col items-center flex-grow mx-0.5 z-10 cursor-pointer"
+                style="height: 100%; justify-content: flex-end;"
+              >
+                <!-- Tooltip -->
+                <div class="absolute bottom-full mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-50">
+                  <div class="bg-[#1a1a1a] text-white text-[10px] py-1 px-2 rounded shadow-lg border border-neutral-800 whitespace-nowrap">
+                    {{ getFullMonthName(item.month) }}: <span class="font-bold text-[#FA2F2A]">${{ formatNumber(item.amount) }} MXN</span>
+                  </div>
+                  <div class="w-2 h-2 bg-[#1a1a1a] border-r border-b border-neutral-800 transform rotate-45 -mt-1"></div>
+                </div>
+                
+                <!-- The actual bar -->
+                <div 
+                  class="w-full max-w-[16px] bg-gradient-to-t from-red-950 to-[#FA2F2A] group-hover:to-red-400 rounded-t transition-all duration-300"
+                  :style="{ height: `${(item.amount / 40000) * 100}%` }"
+                ></div>
+                
+                <!-- X-Axis Label -->
+                <div class="absolute top-full pt-1 text-[9px] font-medium text-neutral-400">{{ item.month }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
