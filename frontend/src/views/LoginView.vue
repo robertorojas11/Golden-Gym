@@ -39,13 +39,19 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-[#F2F2F2] px-4">
-    <div class="max-w-md w-full bg-black rounded-2xl shadow-2xl border border-neutral-800 p-8">
+  <div class="min-h-screen flex items-center justify-center bg-black relative overflow-hidden px-4">
+    <!-- Background Image with Blur -->
+    <div 
+      class="absolute inset-0 bg-cover bg-center filter blur-md scale-105 opacity-65 z-0" 
+      style="background-image: url('/Background.jpg');"
+    ></div>
+    <!-- Overlay for extra contrast -->
+    <div class="absolute inset-0 bg-black/50 z-0"></div>
+
+    <div class="max-w-md w-full bg-black/85 backdrop-blur-md rounded-2xl shadow-2xl border border-neutral-850 p-8 z-10">
       <div class="text-center mb-8">
-        <!-- Gym Logo Block Placeholder -->
-        <div class="inline-flex items-center justify-center bg-[#FA2F2A] text-white w-14 h-14 rounded-xl font-bold text-2xl tracking-tighter mb-4">
-          GG
-        </div>
+        <!-- Gym Logo -->
+        <img src="/Logo.png" alt="Golden Gym Logo" class="h-36 object-contain mx-auto mb-4" />
         <h2 class="text-2xl font-bold text-white tracking-tight">Acceso Golden Gym</h2>
         <p class="text-sm text-neutral-400 mt-2">Consola de Recepción Local</p>
       </div>

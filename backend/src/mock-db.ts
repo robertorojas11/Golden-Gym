@@ -33,6 +33,10 @@ export interface Member {
   isActive: boolean;
   photoUrl?: string;
   notes?: string[];
+  createdBy?: string;
+  createdByName?: string;
+  updatedBy?: string;
+  updatedByName?: string;
 }
 
 export interface MembershipPlan {
@@ -65,6 +69,7 @@ export interface Payment {
   paymentDate: string;
   status: 'PAID' | 'REFUNDED' | 'FAILED';
   processedBy: string;
+  processedByName?: string;
 }
 
 export interface AccessLog {
@@ -140,6 +145,8 @@ export class MockDatabase {
       isActive: true,
       photoUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Roberto',
       notes: ['Prefiere entrenar por la mañana. Sensibilidad leve en la rodilla.'],
+      createdBy: '33333333-3333-3333-3333-333333333333',
+      createdByName: 'Lucas Vance',
     },
     {
       id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002',
@@ -162,6 +169,8 @@ export class MockDatabase {
       isActive: true,
       photoUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Carla',
       notes: ['Inscrita en clases de spinning desde esta semana.'],
+      createdBy: '22222222-2222-2222-2222-222222222222',
+      createdByName: 'Sarah Connor',
     },
     {
       id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003',
@@ -184,6 +193,8 @@ export class MockDatabase {
       isActive: true,
       photoUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=John',
       notes: [],
+      createdBy: '33333333-3333-3333-3333-333333333333',
+      createdByName: 'Lucas Vance',
     },
   ];
 
@@ -280,6 +291,7 @@ export class MockDatabase {
       paymentDate: '2026-06-01T09:15:00Z',
       status: 'PAID',
       processedBy: '33333333-3333-3333-3333-333333333333',
+      processedByName: 'Lucas Vance',
     },
     {
       id: 'd0000000-0000-0000-0000-000000000002',
@@ -292,6 +304,7 @@ export class MockDatabase {
       paymentDate: '2026-02-12T14:30:00Z',
       status: 'PAID',
       processedBy: '22222222-2222-2222-2222-222222222222',
+      processedByName: 'Sarah Connor',
     },
     {
       id: 'd0000000-0000-0000-0000-000000000003',
@@ -304,6 +317,7 @@ export class MockDatabase {
       paymentDate: '2026-05-15T08:00:00Z',
       status: 'PAID',
       processedBy: '33333333-3333-3333-3333-333333333333',
+      processedByName: 'Lucas Vance',
     },
   ];
 

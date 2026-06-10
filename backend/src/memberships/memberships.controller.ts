@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, UseGuards, Query, Req, ForbiddenException } from '@nestjs/common';
 import { MembershipsService } from './memberships.service';
 import { JwtAuthGuard } from '../auth/auth.module';
 import { RolesGuard } from '../auth/roles.guard';
@@ -27,9 +27,25 @@ export class MembershipsController {
     return this.service.assignPlan(body.memberId, body.planId);
   }
 
+  @Put('plans/:id')
+  updatePlan(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    if (req.user?.roleName !== 'owner') {
+      throw new ForbiddenException('Only owners can edit plans');
+    }
+    return this.service.updatePlan(id, body);
+  }
+
   @Put(':id/cancel')
   @RequirePermissions('manage:memberships')
   cancelMembership(@Param('id') id: string) {
     return this.service.cancelMembership(id);
+  }
+
+  @Put(':id')
+  updateMembership(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    if (req.user?.roleName !== 'owner') {
+      throw new ForbiddenException('Only owners can edit memberships');
+    }
+    return this.service.updateMembership(id, body);
   }
 }

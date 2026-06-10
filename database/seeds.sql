@@ -72,10 +72,10 @@ INSERT INTO membership_plans (id, name, price, duration_days, description) VALUE
 ('a0000000-0000-0000-0000-000000000006', 'Anual Oro VIP', 990000, 365, '12 meses con privilegios VIP, entrenador personal y kit de toallas');
 
 -- 7. Insertar Miembros
-INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, registration_date, is_active) VALUES
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'MEM-1001', 'Roberto', 'Mendes', 'Masculino', '1988-04-12', 'roberto.m@gmail.local', '555-0199', 'Av. Insurgentes', '120', 'Ciudad de México', 'CDMX', '06700', 'Maria Mendes', '555-0188', 'Esposa', '2026-01-05', TRUE),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'MEM-1002', 'Carla', 'Sánchez', 'Femenino', '1995-10-23', 'carla.s@yahoo.local', '555-0144', 'Paseo de la Reforma', '45B', 'Ciudad de México', 'CDMX', '06500', 'Juan Sánchez', '555-0145', 'Padre', '2026-02-12', TRUE),
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'MEM-1003', 'Juan', 'Pérez', 'Masculino', '1990-01-01', 'juan.perez@email.local', '555-0100', 'Av. Juárez', '789', 'Ciudad de México', 'CDMX', '06000', 'Juana Pérez', '555-0101', 'Hermana', '2026-05-15', TRUE);
+INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, registration_date, is_active, created_by) VALUES
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'MEM-1001', 'Roberto', 'Mendes', 'Masculino', '1988-04-12', 'roberto.m@gmail.local', '555-0199', 'Av. Insurgentes', '120', 'Ciudad de México', 'CDMX', '06700', 'Maria Mendes', '555-0188', 'Esposa', '2026-01-05', TRUE, '33333333-3333-3333-3333-333333333333'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'MEM-1002', 'Carla', 'Sánchez', 'Femenino', '1995-10-23', 'carla.s@yahoo.local', '555-0144', 'Paseo de la Reforma', '45B', 'Ciudad de México', 'CDMX', '06500', 'Juan Sánchez', '555-0145', 'Padre', '2026-02-12', TRUE, '22222222-2222-2222-2222-222222222222'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'MEM-1003', 'Juan', 'Pérez', 'Masculino', '1990-01-01', 'juan.perez@email.local', '555-0100', 'Av. Juárez', '789', 'Ciudad de México', 'CDMX', '06000', 'Juana Pérez', '555-0101', 'Hermana', '2026-05-15', TRUE, '33333333-3333-3333-3333-333333333333');
 
 -- 8. Agregar Fotos de Miembros
 INSERT INTO member_photos (id, member_id, photo_url, is_primary) VALUES

@@ -150,6 +150,39 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
+  async function updatePlan(id: string, planData: any) {
+    try {
+      const res = await fetch(`${API_URL}/memberships/plans/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      if (res.ok) {
+        await fetchPlans();
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  async function updateMembership(id: string, membershipData: any) {
+    try {
+      const res = await fetch(`${API_URL}/memberships/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(membershipData),
+      });
+      if (res.ok) {
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
   return {
     members,
     selectedMember,
@@ -164,5 +197,7 @@ export const useMemberStore = defineStore('member', () => {
     deactivateMember,
     assignMembership,
     registerPayment,
+    updatePlan,
+    updateMembership,
   };
 });

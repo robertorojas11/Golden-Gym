@@ -77,4 +77,35 @@ export class MembershipsService {
     ms.status = 'ACTIVE';
     return ms;
   }
+
+  updatePlan(id: string, updateData: Partial<MembershipPlan>): MembershipPlan {
+    const plan = this.db.plans.find((p) => p.id === id);
+    if (!plan) {
+      throw new NotFoundException('Membership plan not found');
+    }
+    if (updateData.name !== undefined) plan.name = updateData.name;
+    if (updateData.price !== undefined) plan.price = updateData.price;
+    if (updateData.durationDays !== undefined) plan.durationDays = updateData.durationDays;
+    if (updateData.description !== undefined) plan.description = updateData.description;
+    if (updateData.isActive !== undefined) plan.isActive = updateData.isActive;
+    return plan;
+  }
+
+  updateMembership(id: string, updateData: Partial<Membership>): Membership {
+    const ms = this.db.memberships.find((m) => m.id === id);
+    if (!ms) {
+      throw new NotFoundException('Membership not found');
+    }
+    if (updateData.startDate !== undefined) ms.startDate = updateData.startDate;
+    if (updateData.endDate !== undefined) ms.endDate = updateData.endDate;
+    if (updateData.status !== undefined) ms.status = updateData.status;
+    if (updateData.planId !== undefined) {
+      const plan = this.db.plans.find((p) => p.id === updateData.planId);
+      if (plan) {
+        ms.planId = plan.id;
+        ms.planName = plan.name;
+      }
+    }
+    return ms;
+  }
 }

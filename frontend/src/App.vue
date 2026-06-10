@@ -27,9 +27,7 @@ function handleLogout() {
       <div class="flex items-center space-x-8">
         <!-- Bloque de Logotipo -->
         <router-link to="/" class="flex items-center space-x-3 group">
-          <div class="bg-[#FA2F2A] text-white w-9 h-9 rounded-lg font-bold flex items-center justify-center text-sm tracking-tighter">
-            GG
-          </div>
+          <img src="/Logo.png" alt="GG Logo" class="h-14 object-contain" />
           <span class="font-extrabold text-base tracking-tight text-white group-hover:text-[#FA2F2A] transition-colors">
             GOLDEN GYM
           </span>
@@ -63,14 +61,8 @@ function handleLogout() {
         </nav>
       </div>
 
-      <!-- Derecha: Área reservada para logotipo y perfil de usuario -->
+      <!-- Derecha: Perfil de usuario y Cerrar Sesión -->
       <div class="flex items-center space-x-6">
-        
-        <!-- Marcador de logotipo del gimnasio -->
-        <div class="border border-dashed border-neutral-700 bg-neutral-900 rounded-lg px-4 py-1.5 text-center flex flex-col justify-center items-center h-10 w-24">
-          <span class="text-[9px] font-mono tracking-widest text-neutral-400 font-bold uppercase">Gym Logo</span>
-        </div>
-
         <!-- Botón de Cerrar Sesión -->
         <button 
           @click="handleLogout"
