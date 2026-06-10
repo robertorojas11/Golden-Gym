@@ -322,7 +322,9 @@ async function submitRegisterPayment() {
               <img :src="log.photoUrl || ''" alt="Foto Miembro" class="w-8 h-8 rounded-full border bg-neutral-100 object-cover" />
               <div>
                 <p class="text-xs font-bold text-neutral-800">{{ log.memberName }}</p>
-                <p class="text-[10px] text-neutral-400">{{ log.membershipType }}</p>
+                <p class="text-[10px] text-neutral-400">
+                  {{ log.membershipType }} • {{ new Date(log.scannedAt).toLocaleString() }}
+                </p>
               </div>
             </div>
             <span 

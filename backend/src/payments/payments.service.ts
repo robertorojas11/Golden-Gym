@@ -7,11 +7,25 @@ export class PaymentsService {
   constructor(private db: MockDatabase) {}
 
   findAll(): Payment[] {
-    return this.db.payments;
+    return this.db.payments.map((p) => {
+      const user = this.db.users.find((u) => u.id === p.processedBy);
+      return {
+        ...p,
+        processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+      };
+    });
   }
 
   findMemberPayments(memberId: string): Payment[] {
-    return this.db.payments.filter((p) => p.memberId === memberId);
+    return this.db.payments
+      .filter((p) => p.memberId === memberId)
+      .map((p) => {
+        const user = this.db.users.find((u) => u.id === p.processedBy);
+        return {
+          ...p,
+          processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+        };
+      });
   }
 
   registerPayment(paymentData: {
@@ -46,6 +60,9 @@ export class PaymentsService {
       status: 'PAID',
       processedBy: paymentData.processedBy,
     };
+
+    const user = this.db.users.find((u) => u.id === newPayment.processedBy);
+    newPayment.processedByName = user ? `${user.firstName} ${user.lastName}` : 'Desconocido';
 
     this.db.payments.push(newPayment);
 

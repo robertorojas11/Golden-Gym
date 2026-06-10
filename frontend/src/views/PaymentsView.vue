@@ -59,6 +59,7 @@ async function handleRefund(id: string) {
               <th class="p-3">Ref. Transacción</th>
               <th class="p-3">Método</th>
               <th class="p-3">Fecha de Cobro</th>
+              <th class="p-3">Procesado por</th>
               <th class="p-3">Monto</th>
               <th class="p-3 text-right">Estatus</th>
               <th v-if="authStore.hasPermission('manage:payments')" class="p-3 text-right">Acción</th>
@@ -69,6 +70,7 @@ async function handleRefund(id: string) {
               <td class="p-3 font-mono font-semibold text-neutral-700">{{ pay.referenceNumber }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.paymentMethodName }}</td>
               <td class="p-3 text-neutral-500">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
+              <td class="p-3 text-neutral-600 font-medium">{{ pay.processedByName || 'Sistema' }}</td>
               <td class="p-3 font-bold text-neutral-900">${{ pay.amount / 100 }} MXN</td>
               <td class="p-3 text-right">
                 <span 
@@ -90,7 +92,7 @@ async function handleRefund(id: string) {
               </td>
             </tr>
             <tr v-if="payments.length === 0">
-              <td colspan="6" class="p-4 text-center text-neutral-400">No existen registros de pago en la base de datos.</td>
+              <td colspan="7" class="p-4 text-center text-neutral-400">No existen registros de pago en la base de datos.</td>
             </tr>
           </tbody>
         </table>

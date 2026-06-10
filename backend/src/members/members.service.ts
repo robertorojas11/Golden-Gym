@@ -31,8 +31,9 @@ export class MembersService {
     );
   }
 
-  create(memberData: Partial<Member>): Member {
+  create(memberData: Partial<Member>, userId?: string): Member {
     const nextNum = 1000 + this.db.members.length + 1;
+    const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
     const newMember: Member = {
       id: randomUUID(),
       memberNumber: `MEM-${nextNum}`,
@@ -54,14 +55,21 @@ export class MembersService {
       isActive: true,
       photoUrl: memberData.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${memberData.firstName}`,
       notes: memberData.notes || [],
+      createdBy: userId || '33333333-3333-3333-3333-333333333333',
+      createdByName: user ? `${user.firstName} ${user.lastName}` : 'Lucas Vance',
     };
     this.db.members.push(newMember);
     return newMember;
   }
 
-  update(id: string, updateData: Partial<Member>): Member {
+  update(id: string, updateData: Partial<Member>, userId?: string): Member {
     const member = this.findOne(id);
-    Object.assign(member, updateData);
+    const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
+    Object.assign(member, {
+      ...updateData,
+      updatedBy: userId,
+      updatedByName: user ? `${user.firstName} ${user.lastName}` : undefined,
+    });
     return member;
   }
 

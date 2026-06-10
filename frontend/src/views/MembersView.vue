@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useMemberStore } from '../stores/member.store';
+import { useAuthStore } from '../stores/auth.store';
 
 const memberStore = useMemberStore();
+const authStore = useAuthStore();
 const searchQuery = ref('');
 const activeTab = ref<'detail' | 'memberships' | 'payments'>('detail');
 
 onMounted(() => {
   memberStore.fetchMembers();
+  memberStore.fetchPlans();
 });
 
 function handleSearch() {
@@ -45,6 +48,39 @@ async function triggerDeactivate() {
     if (success) {
       alert('Miembro desactivado correctamente');
     }
+  }
+}
+
+// Membership Edit Models
+const showEditMembershipModal = ref(false);
+const editingMembership = ref<any>(null);
+const membershipForm = ref({
+  planId: '',
+  startDate: '',
+  endDate: '',
+  status: 'PENDING' as 'PENDING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED',
+});
+
+function openEditMembership(ms: any) {
+  editingMembership.value = ms;
+  membershipForm.value = {
+    planId: ms.planId,
+    startDate: ms.startDate,
+    endDate: ms.endDate,
+    status: ms.status,
+  };
+  showEditMembershipModal.value = true;
+}
+
+async function handleSaveMembership() {
+  if (!editingMembership.value || !memberStore.selectedMember) return;
+  const success = await memberStore.updateMembership(editingMembership.value.id, membershipForm.value);
+  if (success) {
+    showEditMembershipModal.value = false;
+    editingMembership.value = null;
+    memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+  } else {
+    alert('Error al actualizar la membresía');
   }
 }
 </script>
@@ -190,6 +226,8 @@ async function triggerDeactivate() {
                   <div class="text-neutral-700 space-y-1">
                     <p><span class="text-neutral-400">Fecha de Registro:</span> {{ memberStore.selectedMember.registrationDate }}</p>
                     <p><span class="text-neutral-400">Nº de Miembro:</span> {{ memberStore.selectedMember.memberNumber }}</p>
+                    <p v-if="memberStore.selectedMember.createdByName"><span class="text-neutral-400">Registrado por:</span> {{ memberStore.selectedMember.createdByName }}</p>
+                    <p v-if="memberStore.selectedMember.updatedByName"><span class="text-neutral-400">Última edición por:</span> {{ memberStore.selectedMember.updatedByName }}</p>
                   </div>
                 </div>
               </div>
@@ -228,7 +266,8 @@ async function triggerDeactivate() {
                       <th class="p-3">Nombre del Plan</th>
                       <th class="p-3">Fecha de Inicio</th>
                       <th class="p-3">Fecha de Vencimiento</th>
-                      <th class="p-3 text-right">Estatus</th>
+                      <th class="p-3">Estatus</th>
+                      <th v-if="authStore.userRole === 'owner'" class="p-3 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -236,7 +275,7 @@ async function triggerDeactivate() {
                       <td class="p-3 font-bold text-neutral-900">{{ ms.planName }}</td>
                       <td class="p-3 text-neutral-500">{{ ms.startDate }}</td>
                       <td class="p-3 text-neutral-500">{{ ms.endDate }}</td>
-                      <td class="p-3 text-right">
+                      <td class="p-3">
                         <span 
                           class="px-2 py-0.5 rounded text-[10px] font-semibold animate-none"
                           :class="{
@@ -249,9 +288,17 @@ async function triggerDeactivate() {
                           {{ ms.status === 'ACTIVE' ? 'ACTIVA' : ms.status === 'PENDING' ? 'PENDIENTE' : ms.status === 'EXPIRED' ? 'EXPIRADA' : 'CANCELADA' }}
                         </span>
                       </td>
+                      <td v-if="authStore.userRole === 'owner'" class="p-3 text-right">
+                        <button 
+                          @click="openEditMembership(ms)"
+                          class="text-[10px] font-bold text-neutral-600 bg-neutral-100 hover:bg-black hover:text-white px-2.5 py-1 rounded transition-all"
+                        >
+                          Editar
+                        </button>
+                      </td>
                     </tr>
                     <tr v-if="memberStore.activeMemberships.length === 0">
-                      <td colspan="4" class="p-4 text-center text-neutral-400">Aún no se ha asignado ningún plan de membresía.</td>
+                      <td colspan="5" class="p-4 text-center text-neutral-400">Aún no se ha asignado ningún plan de membresía.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -267,6 +314,7 @@ async function triggerDeactivate() {
                       <th class="p-3">Ref. Recibo</th>
                       <th class="p-3">Método de Pago</th>
                       <th class="p-3">Fecha de Pago</th>
+                      <th class="p-3">Procesado por</th>
                       <th class="p-3">Monto</th>
                       <th class="p-3 text-right">Estatus</th>
                     </tr>
@@ -276,6 +324,7 @@ async function triggerDeactivate() {
                       <td class="p-3 font-mono font-semibold text-neutral-700">{{ pay.referenceNumber }}</td>
                       <td class="p-3 text-neutral-600">{{ pay.paymentMethodName }}</td>
                       <td class="p-3 text-neutral-500">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
+                      <td class="p-3 text-neutral-600 font-medium">{{ pay.processedByName || 'Sistema' }}</td>
                       <td class="p-3 font-bold text-neutral-900">${{ pay.amount / 100 }} MXN</td>
                       <td class="p-3 text-right">
                         <span 
@@ -287,7 +336,7 @@ async function triggerDeactivate() {
                       </td>
                     </tr>
                     <tr v-if="memberStore.activePayments.length === 0">
-                      <td colspan="5" class="p-4 text-center text-neutral-400">No se han encontrado recibos de pago.</td>
+                      <td colspan="6" class="p-4 text-center text-neutral-400">No se han encontrado recibos de pago.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -310,5 +359,84 @@ async function triggerDeactivate() {
       </div>
 
     </div>
+
+    <!-- MODAL EDITAR MEMBRESÍA (OWNER ONLY) -->
+    <div v-if="showEditMembershipModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-neutral-100 animate-in fade-in zoom-in duration-200">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-widest">Editar Membresía</h3>
+          <button @click="showEditMembershipModal = false" class="text-neutral-400 hover:text-neutral-600">
+            ✕
+          </button>
+        </div>
+
+        <form @submit.prevent="handleSaveMembership" class="space-y-4 text-xs">
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Plan de Membresía</label>
+            <select 
+              v-model="membershipForm.planId" 
+              required
+              class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900"
+            >
+              <option v-for="plan in memberStore.plans" :key="plan.id" :value="plan.id">
+                {{ plan.name }} (${{ plan.price / 100 }} MXN)
+              </option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Fecha de Inicio</label>
+              <input 
+                v-model="membershipForm.startDate" 
+                type="date" 
+                required
+                class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900"
+              />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Fecha de Fin</label>
+              <input 
+                v-model="membershipForm.endDate" 
+                type="date" 
+                required
+                class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Estatus</label>
+            <select 
+              v-model="membershipForm.status" 
+              required
+              class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900"
+            >
+              <option value="PENDING">PENDIENTE</option>
+              <option value="ACTIVE">ACTIVA</option>
+              <option value="CANCELLED">CANCELADA</option>
+              <option value="EXPIRED">EXPIRADA</option>
+            </select>
+          </div>
+
+          <div class="flex space-x-3 pt-4 border-t border-neutral-100">
+            <button 
+              type="button" 
+              @click="showEditMembershipModal = false"
+              class="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 py-2.5 rounded-xl font-bold transition-all"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit"
+              class="flex-1 bg-[#FA2F2A] hover:bg-[#d6201b] text-white py-2.5 rounded-xl font-bold shadow-sm transition-all"
+            >
+              Guardar Cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
 </template>

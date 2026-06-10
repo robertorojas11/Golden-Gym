@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards, Req } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { JwtAuthGuard } from '../auth/auth.module';
 import { RolesGuard } from '../auth/roles.guard';
@@ -30,14 +30,16 @@ export class MembersController {
 
   @Post()
   @RequirePermissions('manage:access')
-  create(@Body() body: Partial<Member>) {
-    return this.service.create(body);
+  create(@Body() body: Partial<Member>, @Req() req: any) {
+    const userId = req.user?.id;
+    return this.service.create(body, userId);
   }
 
   @Put(':id')
   @RequirePermissions('manage:access')
-  update(@Param('id') id: string, @Body() body: Partial<Member>) {
-    return this.service.update(id, body);
+  update(@Param('id') id: string, @Body() body: Partial<Member>, @Req() req: any) {
+    const userId = req.user?.id;
+    return this.service.update(id, body, userId);
   }
 
   @Delete(':id')
