@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
+import { useSyncStore } from '../stores/sync.store';
 
 const authStore = useAuthStore();
+const syncStore = useSyncStore();
 const payments = ref<any[]>([]);
 
 // Filter states
@@ -175,6 +177,7 @@ async function confirmRefund() {
     });
     if (res.ok) {
       triggerToast(`Reembolso del pago ${refundingPaymentRef.value} procesado correctamente.`);
+      syncStore.registerModification('REEMBOLSO_PAGO', `Reembolso de pago ref: ${refundingPaymentRef.value}`);
       closeRefundModal();
       fetchPayments();
     } else {
