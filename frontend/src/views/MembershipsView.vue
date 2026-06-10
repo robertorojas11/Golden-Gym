@@ -61,8 +61,7 @@ async function handleSave() {
         :key="plan.id" 
         class="premium-card p-6 bg-white flex flex-col justify-between space-y-4 relative"
         :class="{ 
-          'opacity-60': plan.isActive === false,
-          '!border-[#EF9F27] border-2 ring-1 ring-[#EF9F27]/10': plan.name === 'Anual Oro VIP'
+          'opacity-60': plan.isActive === false
         }"
       >
         <div class="space-y-2">
@@ -70,9 +69,6 @@ async function handleSave() {
             <div class="space-y-1">
               <div class="flex items-center space-x-1.5">
                 <h3 class="text-sm font-bold text-neutral-900">{{ plan.name }}</h3>
-                <svg v-if="plan.name === 'Anual Oro VIP'" xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5 text-[#EF9F27]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.252.584 1.828l-3.97 2.89a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.97-2.89a1 1 0 00-1.176 0l-3.97 2.89c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.89c-.776-.576-.377-1.828.584-1.828h4.907a1 1 0 00.95-.69l1.519-4.674z" />
-                </svg>
               </div>
               <span v-if="plan.isActive === false" class="inline-block px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-[8px] font-bold uppercase">
                 Inactivo
@@ -80,7 +76,6 @@ async function handleSave() {
             </div>
             <span 
               class="px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded text-[9px] font-bold uppercase"
-              :class="{ '!bg-[#EF9F27]/15 !text-[#EF9F27] border border-[#EF9F27]/25': plan.name === 'Anual Oro VIP' }"
             >
               {{ plan.durationDays }} Días
             </span>
@@ -97,7 +92,6 @@ async function handleSave() {
             v-if="authStore.userRole === 'owner'"
             @click="openEdit(plan)"
             class="text-[10px] font-bold text-neutral-600 bg-neutral-100 hover:bg-black hover:text-white px-3 py-1.5 rounded-lg transition-all"
-            :class="{ '!border-[#EF9F27]/50 hover:!bg-[#EF9F27] hover:!text-black': plan.name === 'Anual Oro VIP' }"
           >
             Editar Plan
           </button>
