@@ -57,19 +57,19 @@ INSERT INTO payment_methods (id, name, is_active) VALUES
 ('90000000-0000-0000-0000-000000000004', 'Transferencia', TRUE);
 
 -- 6. Insertar Planes de Membresía (Precios en centavos de Peso Mexicano MXN)
--- Pase Diario: $200 MXN -> 20000 centavos
--- Pase Semanal: $600 MXN -> 60000 centavos
--- Mensual Estándar: $1,100 MXN -> 110000 centavos
--- Trimestral Estándar: $3,000 MXN -> 300000 centavos
--- Semestral Plata: $5,500 MXN -> 550000 centavos
--- Anual Oro VIP: $9,900 MXN -> 990000 centavos
+-- Pase Diario: $40 MXN -> 4000 centavos
+-- Pase Semanal: $100 MXN -> 10000 centavos
+-- Mensual Estándar: $350 MXN -> 35000 centavos
+-- Trimestral Estándar: $950 MXN -> 95000 centavos
+-- Semestral Estándar: $2000 MXN -> 200000 centavos
+-- Anual Estandar: $4000 MXN -> 400000 centavos
 INSERT INTO membership_plans (id, name, price, duration_days, description) VALUES
-('a0000000-0000-0000-0000-000000000001', 'Pase Diario', 20000, 1, 'Acceso completo por 24 horas a áreas de pesas y cardio'),
-('a0000000-0000-0000-0000-000000000002', 'Pase Semanal', 60000, 7, 'Acceso ilimitado por 7 días naturales consecutivos'),
-('a0000000-0000-0000-0000-000000000003', 'Mensual Estándar', 110000, 30, 'Acceso completo, lockers y clases grupales incluidas'),
-('a0000000-0000-0000-0000-000000000004', 'Trimestral Estándar', 300000, 90, '3 meses de acceso completo con evaluación física de regalo'),
-('a0000000-0000-0000-0000-000000000005', 'Semestral Plata', 550000, 180, '6 meses de acceso completo, clases especiales y lockers VIP'),
-('a0000000-0000-0000-0000-000000000006', 'Anual Oro VIP', 990000, 365, '12 meses con privilegios VIP, entrenador personal y kit de toallas');
+('a0000000-0000-0000-0000-000000000001', 'Pase Diario', 4000, 1, 'Acceso completo por 24 horas a áreas de pesas y cardio'),
+('a0000000-0000-0000-0000-000000000002', 'Pase Semanal', 10000, 7, 'Acceso completo por 7 días habiles consecutivos'),
+('a0000000-0000-0000-0000-000000000003', 'Mensual Estándar', 35000, 30, 'Acceso completo, lockers y clases incluidas'),
+('a0000000-0000-0000-0000-000000000004', 'Trimestral Estándar', 95000, 90, '3 meses de acceso completo, incluye acceso a clases y uso de lockers'),
+('a0000000-0000-0000-0000-000000000005', 'Semestral Estandar', 200000, 180, '6 meses de acceso completo, incluye acceso a clases y uso de lockers'),
+('a0000000-0000-0000-0000-000000000006', 'Anual Estandar', 400000, 365, '12 meses de acceso completo, incluye acceso a clases y uso de lockers');
 
 -- 7. Insertar Miembros
 INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, registration_date, is_active, created_by) VALUES
@@ -104,15 +104,15 @@ INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status) V
 -- 11. Agregar Registro de Pagos
 -- Roberto pagó $1,100 MXN en tarjeta de crédito
 INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by) VALUES
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'cccccccc-cccc-cccc-cccc-cccccccc0001', '90000000-0000-0000-0000-000000000003', 110000, 'REF-8827419', '2026-06-01 09:15:00+00', 'PAID', '33333333-3333-3333-3333-333333333333');
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'cccccccc-cccc-cccc-cccc-cccccccc0001', '90000000-0000-0000-0000-000000000003', 35000, 'REF-8827419', '2026-06-01 09:15:00+00', 'PAID', '33333333-3333-3333-3333-333333333333');
 
 -- Carla pagó $9,900 MXN en transferencia
 INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by) VALUES
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'cccccccc-cccc-cccc-cccc-cccccccc0002', '90000000-0000-0000-0000-000000000004', 990000, 'REF-9912837', '2026-02-12 14:30:00+00', 'PAID', '22222222-2222-2222-2222-222222222222');
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'cccccccc-cccc-cccc-cccc-cccccccc0002', '90000000-0000-0000-0000-000000000004', 400000, 'REF-9912837', '2026-02-12 14:30:00+00', 'PAID', '22222222-2222-2222-2222-222222222222');
 
 -- Juan pagó $200 MXN en efectivo
 INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by) VALUES
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'cccccccc-cccc-cccc-cccc-cccccccc0003', '90000000-0000-0000-0000-000000000001', 20000, 'REF-1234567', '2026-05-15 08:00:00+00', 'PAID', '33333333-3333-3333-3333-333333333333');
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'cccccccc-cccc-cccc-cccc-cccccccc0003', '90000000-0000-0000-0000-000000000001', 4000, 'REF-1234567', '2026-05-15 08:00:00+00', 'PAID', '33333333-3333-3333-3333-333333333333');
 
 -- 12. Agregar Bitácora de Accesos
 INSERT INTO access_logs (id, member_id, access_granted, failure_reason, scanned_at) VALUES
