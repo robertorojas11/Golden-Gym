@@ -60,12 +60,12 @@ export class AnalyticsService {
 
     // 2. Ingresos por mes (en pesos MXN)
     const monthlyRevenue = [
-      { month: 'Ene', amount: 12000 },
-      { month: 'Feb', amount: 15000 },
-      { month: 'Mar', amount: 18000 },
-      { month: 'Abr', amount: 21000 },
-      { month: 'May', amount: 24000 },
-      { month: 'Jun', amount: 31000 },
+      { month: 'Ene', amount: 4500 },
+      { month: 'Feb', amount: 5200 },
+      { month: 'Mar', amount: 6100 },
+      { month: 'Abr', amount: 5800 },
+      { month: 'May', amount: 7200 },
+      { month: 'Jun', amount: 8500 },
       { month: 'Jul', amount: 0 },
       { month: 'Ago', amount: 0 },
       { month: 'Sep', amount: 0 },

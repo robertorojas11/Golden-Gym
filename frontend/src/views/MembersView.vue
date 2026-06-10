@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { useMemberStore } from '../stores/member.store';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -7,6 +7,31 @@ const memberStore = useMemberStore();
 const authStore = useAuthStore();
 const searchQuery = ref('');
 const activeTab = ref<'detail' | 'memberships' | 'payments'>('detail');
+
+const filterPlan = ref('ALL');
+const filterStatus = ref('ALL');
+
+const filteredMembers = computed(() => {
+  return memberStore.members.filter((m: any) => {
+    // 1. Plan filter
+    if (filterPlan.value !== 'ALL') {
+      if (filterPlan.value === 'NONE') {
+        if (m.hasActiveMembership) return false;
+      } else {
+        if (m.activePlanId !== filterPlan.value) return false;
+      }
+    }
+    // 2. Status filter
+    if (filterStatus.value !== 'ALL') {
+      if (filterStatus.value === 'ACTIVE') {
+        if (!m.hasActiveMembership) return false;
+      } else if (filterStatus.value === 'INACTIVE') {
+        if (m.hasActiveMembership) return false;
+      }
+    }
+    return true;
+  });
+});
 
 onMounted(() => {
   memberStore.fetchMembers();
@@ -181,11 +206,33 @@ async function handleSaveMembership() {
               </svg>
             </button>
           </div>
+
+          <!-- FILTROS DE PLAN Y ESTADO -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label class="block text-[8px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Plan actual</label>
+              <select v-model="filterPlan" class="w-full border rounded-lg px-2 py-1 text-[10px] focus:outline-neutral-900">
+                <option value="ALL">Todos los planes</option>
+                <option value="NONE">Sin plan activo</option>
+                <option v-for="plan in memberStore.plans" :key="plan.id" :value="plan.id">
+                  {{ plan.name }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[8px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Estado</label>
+              <select v-model="filterStatus" class="w-full border rounded-lg px-2 py-1 text-[10px] focus:outline-neutral-900">
+                <option value="ALL">Todos</option>
+                <option value="ACTIVE">Activo</option>
+                <option value="INACTIVE">Inactivo</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="premium-card bg-white p-2 max-h-[600px] overflow-y-auto space-y-1">
           <div 
-            v-for="m in memberStore.members" 
+            v-for="m in filteredMembers" 
             :key="m.id"
             @click="selectMember(m.id)"
             class="px-4 py-3 rounded-xl cursor-pointer hover:bg-neutral-50 flex items-center space-x-3 transition-all"
@@ -194,17 +241,21 @@ async function handleSaveMembership() {
             <img :src="m.photoUrl || ''" alt="Miembro" class="w-8 h-8 rounded-full border border-neutral-200 bg-white" />
             <div class="flex-grow">
               <p class="text-xs font-bold">{{ m.firstName }} {{ m.lastName }}</p>
-              <p class="text-[10px]" :class="memberStore.selectedMember?.id === m.id ? 'text-neutral-400' : 'text-neutral-400'">{{ m.memberNumber }}</p>
+              <p class="text-[9px] text-neutral-400">
+                {{ m.memberNumber }}
+                <span v-if="m.hasActiveMembership" class="ml-1 text-emerald-500 font-semibold">• {{ m.activePlanName }}</span>
+                <span v-else class="ml-1 text-neutral-500 font-medium italic">• Sin Plan</span>
+              </p>
             </div>
             <span class="w-2 h-2 rounded-full" :class="m.isActive ? 'bg-emerald-500' : 'bg-red-500'"></span>
           </div>
 
-          <div v-if="memberStore.members.length === 0" class="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <div v-if="filteredMembers.length === 0" class="flex flex-col items-center justify-center py-12 px-4 text-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-neutral-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <p class="text-xs font-bold text-neutral-300">No se encontraron miembros</p>
-            <p class="text-[10px] text-neutral-500 mt-1 max-w-[200px]">Prueba con otro término de búsqueda o registra un nuevo miembro.</p>
+            <p class="text-[10px] text-neutral-500 mt-1 max-w-[200px]">Prueba con otro término de búsqueda o modifica los filtros.</p>
           </div>
         </div>
       </div>

@@ -6,8 +6,20 @@ import { MockDatabase, Member } from '../mock-db';
 export class MembersService {
   constructor(private db: MockDatabase) {}
 
-  findAll(): Member[] {
-    return this.db.members.filter((m) => m.isActive !== false);
+  findAll() {
+    return this.db.members
+      .filter((m) => m.isActive !== false)
+      .map((m) => {
+        const activeMembership = this.db.memberships.find(
+          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE',
+        );
+        return {
+          ...m,
+          activePlanId: activeMembership?.planId || null,
+          activePlanName: activeMembership?.planName || null,
+          hasActiveMembership: !!activeMembership,
+        };
+      });
   }
 
   findOne(id: string): Member {
@@ -18,17 +30,29 @@ export class MembersService {
     return member;
   }
 
-  search(query: string): Member[] {
+  search(query: string) {
     const q = query.toLowerCase();
-    return this.db.members.filter(
-      (m) =>
-        m.isActive !== false &&
-        (m.firstName.toLowerCase().includes(q) ||
-          m.lastName.toLowerCase().includes(q) ||
-          m.memberNumber.toLowerCase().includes(q) ||
-          m.phone.includes(q) ||
-          m.email?.toLowerCase().includes(q)),
-    );
+    return this.db.members
+      .filter(
+        (m) =>
+          m.isActive !== false &&
+          (m.firstName.toLowerCase().includes(q) ||
+            m.lastName.toLowerCase().includes(q) ||
+            m.memberNumber.toLowerCase().includes(q) ||
+            m.phone.includes(q) ||
+            m.email?.toLowerCase().includes(q)),
+      )
+      .map((m) => {
+        const activeMembership = this.db.memberships.find(
+          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE',
+        );
+        return {
+          ...m,
+          activePlanId: activeMembership?.planId || null,
+          activePlanName: activeMembership?.planName || null,
+          hasActiveMembership: !!activeMembership,
+        };
+      });
   }
 
   create(memberData: Partial<Member>, userId?: string): Member {
