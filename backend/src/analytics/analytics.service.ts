@@ -58,7 +58,7 @@ export class AnalyticsService {
       { date: 'Dom', count: 8 },
     ];
 
-    // 2. Ingresos por mes (en miles de pesos)
+    // 2. Ingresos por mes (en pesos MXN)
     const monthlyRevenue = [
       { month: 'Ene', amount: 12000 },
       { month: 'Feb', amount: 15000 },
@@ -66,6 +66,12 @@ export class AnalyticsService {
       { month: 'Abr', amount: 21000 },
       { month: 'May', amount: 24000 },
       { month: 'Jun', amount: 31000 },
+      { month: 'Jul', amount: 0 },
+      { month: 'Ago', amount: 0 },
+      { month: 'Sep', amount: 0 },
+      { month: 'Oct', amount: 0 },
+      { month: 'Nov', amount: 0 },
+      { month: 'Dic', amount: 0 },
     ];
 
     // 3. Distribución de membresías
