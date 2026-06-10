@@ -324,7 +324,7 @@ function formatNumber(val: number) {
                 
                 <!-- The actual bar -->
                 <div 
-                  class="w-full max-w-[24px] bg-gradient-to-t from-neutral-850 to-neutral-400 group-hover:to-[#FA2F2A] rounded-t transition-all duration-300"
+                  class="w-full max-w-[24px] bg-gradient-to-t from-[#936c1e] to-[#EF9F27] group-hover:to-[#f5b041] rounded-t transition-all duration-300"
                   :style="{ height: `${(item.count / 40) * 100}%` }"
                 ></div>
                 
