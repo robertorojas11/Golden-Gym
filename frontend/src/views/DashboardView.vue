@@ -314,59 +314,83 @@ async function submitRegisterPayment() {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       <!-- Table 1: Recent Check-ins -->
-      <div class="premium-card p-6 bg-white overflow-hidden">
-        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Accesos Recientes</h3>
-        <div class="space-y-4">
-          <div v-for="log in recent.recentAccesses" :key="log.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
-            <div class="flex items-center space-x-3">
-              <img :src="log.photoUrl || ''" alt="Foto Miembro" class="w-8 h-8 rounded-full border bg-neutral-100 object-cover" />
-              <div>
-                <p class="text-xs font-bold text-neutral-800">{{ log.memberName }}</p>
-                <p class="text-[10px] text-neutral-400">
-                  {{ log.membershipType }} • {{ new Date(log.scannedAt).toLocaleString() }}
-                </p>
+      <div class="premium-card p-6 bg-white overflow-hidden flex flex-col justify-between min-h-[280px]">
+        <div>
+          <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Accesos Recientes</h3>
+          <div class="space-y-4">
+            <div v-for="log in recent.recentAccesses" :key="log.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
+              <div class="flex items-center space-x-3">
+                <img :src="log.photoUrl || ''" alt="Foto Miembro" class="w-8 h-8 rounded-full border bg-neutral-100 object-cover" />
+                <div>
+                  <p class="text-xs font-bold text-neutral-800">{{ log.memberName }}</p>
+                  <p class="text-[10px] text-neutral-400">
+                    {{ log.membershipType }} • {{ new Date(log.scannedAt).toLocaleString() }}
+                  </p>
+                </div>
               </div>
+              <span 
+                class="px-2 py-0.5 rounded text-[10px] font-semibold"
+                :class="log.accessGranted ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'"
+              >
+                {{ log.accessGranted ? 'PERMITIDO' : 'RECHAZADO' }}
+              </span>
             </div>
-            <span 
-              class="px-2 py-0.5 rounded text-[10px] font-semibold"
-              :class="log.accessGranted ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'"
-            >
-              {{ log.accessGranted ? 'PERMITIDO' : 'RECHAZADO' }}
-            </span>
           </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-neutral-900 flex justify-end">
+          <router-link to="/access-control" class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider transition-colors flex items-center space-x-1">
+            <span>Ver todo</span>
+            <span>→</span>
+          </router-link>
         </div>
       </div>
 
       <!-- Table 2: Upcoming Expirations -->
-      <div class="premium-card p-6 bg-white overflow-hidden">
-        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Próximos Vencimientos</h3>
-        <div class="space-y-4">
-          <div v-for="ms in recent.upcomingExpirations" :key="ms.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
-            <div>
-              <p class="text-xs font-bold text-neutral-800">{{ ms.memberName }}</p>
-              <p class="text-[10px] text-neutral-400">{{ ms.planName }}</p>
+      <div class="premium-card p-6 bg-white overflow-hidden flex flex-col justify-between min-h-[280px]">
+        <div>
+          <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Próximos Vencimientos</h3>
+          <div class="space-y-4">
+            <div v-for="ms in recent.upcomingExpirations" :key="ms.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
+              <div>
+                <p class="text-xs font-bold text-neutral-800">{{ ms.memberName }}</p>
+                <p class="text-[10px] text-neutral-400">{{ ms.planName }}</p>
+              </div>
+              <span class="text-[11px] font-semibold text-[#FFA624]">
+                Vence: {{ ms.endDate }}
+              </span>
             </div>
-            <span class="text-[11px] font-semibold text-[#FFA624]">
-              Vence: {{ ms.endDate }}
-            </span>
           </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-neutral-900 flex justify-end">
+          <router-link to="/members" class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider transition-colors flex items-center space-x-1">
+            <span>Ver todo</span>
+            <span>→</span>
+          </router-link>
         </div>
       </div>
 
       <!-- Table 3: Recent Payments -->
-      <div class="premium-card p-6 bg-white overflow-hidden">
-        <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Cobros Recientes</h3>
-        <div class="space-y-4">
-          <div v-for="pay in recent.recentPayments" :key="pay.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
-            <div>
-              <p class="text-xs font-bold text-neutral-800">{{ pay.memberName }}</p>
-              <p class="text-[10px] text-neutral-400">{{ pay.method }}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-xs font-bold text-neutral-900">${{ pay.amount }} MXN</p>
-              <p class="text-[9px] font-semibold text-emerald-600 uppercase">{{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}</p>
+      <div class="premium-card p-6 bg-white overflow-hidden flex flex-col justify-between min-h-[280px]">
+        <div>
+          <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Cobros Recientes</h3>
+          <div class="space-y-4">
+            <div v-for="pay in recent.recentPayments" :key="pay.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
+              <div>
+                <p class="text-xs font-bold text-neutral-800">{{ pay.memberName }}</p>
+                <p class="text-[10px] text-neutral-400">{{ pay.method }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs font-bold text-neutral-900">${{ pay.amount }} MXN</p>
+                <p class="text-[9px] font-semibold text-emerald-600 uppercase">{{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}</p>
+              </div>
             </div>
           </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-neutral-900 flex justify-end">
+          <router-link to="/payments" class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider transition-colors flex items-center space-x-1">
+            <span>Ver todo</span>
+            <span>→</span>
+          </router-link>
         </div>
       </div>
 
