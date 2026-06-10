@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 
 const authStore = useAuthStore();
 const payments = ref<any[]>([]);
+
+// Filter states
+const searchText = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
+const selectedStatus = ref('ALL');
+const selectedMethod = ref('ALL');
 
 const API_URL = 'http://localhost:3000';
 
@@ -24,6 +31,70 @@ async function fetchPayments() {
 onMounted(() => {
   fetchPayments();
 });
+
+function matchMethod(payMethodName: string, selected: string): boolean {
+  if (selected === 'ALL') return true;
+  const name = payMethodName.toLowerCase();
+  if (selected === 'efectivo') {
+    return name.includes('efectivo') || name.includes('cash');
+  }
+  if (selected === 'credito') {
+    return name.includes('crédito') || name.includes('credit');
+  }
+  if (selected === 'debito') {
+    return name.includes('débito') || name.includes('debit');
+  }
+  if (selected === 'transferencia') {
+    return name.includes('transferencia') || name.includes('transfer');
+  }
+  return false;
+}
+
+const filteredPayments = computed(() => {
+  return payments.value.filter((pay) => {
+    // 1. Text Search
+    if (searchText.value) {
+      const query = searchText.value.toLowerCase();
+      const memberName = (pay.memberName || '').toLowerCase();
+      const refNum = (pay.referenceNumber || '').toLowerCase();
+      if (!memberName.includes(query) && !refNum.includes(query)) {
+        return false;
+      }
+    }
+
+    // 2. Date Range
+    if (dateFrom.value) {
+      const fromTime = new Date(dateFrom.value + 'T00:00:00').getTime();
+      const payTime = new Date(pay.paymentDate).getTime();
+      if (payTime < fromTime) return false;
+    }
+    if (dateTo.value) {
+      const toTime = new Date(dateTo.value + 'T23:59:59').getTime();
+      const payTime = new Date(pay.paymentDate).getTime();
+      if (payTime > toTime) return false;
+    }
+
+    // 3. Status
+    if (selectedStatus.value !== 'ALL') {
+      if (pay.status !== selectedStatus.value) return false;
+    }
+
+    // 4. Method
+    if (selectedMethod.value !== 'ALL') {
+      if (!matchMethod(pay.paymentMethodName, selectedMethod.value)) return false;
+    }
+
+    return true;
+  });
+});
+
+function clearFilters() {
+  searchText.value = '';
+  dateFrom.value = '';
+  dateTo.value = '';
+  selectedStatus.value = 'ALL';
+  selectedMethod.value = 'ALL';
+}
 
 // Modal state
 const showRefundModal = ref(false);
@@ -126,12 +197,89 @@ async function confirmRefund() {
       <p class="text-xs text-neutral-500 mt-1">Historial de transacciones financieras y reembolsos</p>
     </div>
 
+    <!-- Toolbar de Filtros -->
+    <div class="p-5 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-lg space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+        <!-- Búsqueda por texto -->
+        <div class="md:col-span-4 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Buscar</label>
+          <input 
+            v-model="searchText"
+            type="text"
+            placeholder="Miembro o Nº Ref (REF-XXXXXXX)..."
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          />
+        </div>
+
+        <!-- Rango de fecha Desde -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Desde</label>
+          <input 
+            v-model="dateFrom"
+            type="date"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          />
+        </div>
+
+        <!-- Rango de fecha Hasta -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Hasta</label>
+          <input 
+            v-model="dateTo"
+            type="date"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          />
+        </div>
+
+        <!-- Estatus Dropdown -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Estatus</label>
+          <select 
+            v-model="selectedStatus"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          >
+            <option value="ALL">Todos</option>
+            <option value="PAID">Pagado</option>
+            <option value="REFUNDED">Reembolsado</option>
+          </select>
+        </div>
+
+        <!-- Método Dropdown -->
+        <div class="md:col-span-2 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Método</label>
+          <select 
+            v-model="selectedMethod"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          >
+            <option value="ALL">Todos</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="credito">Tarjeta de Crédito</option>
+            <option value="debito">Tarjeta de Débito</option>
+            <option value="transferencia">Transferencia</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button 
+          @click="clearFilters"
+          class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider flex items-center space-x-1.5 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>Limpiar filtros</span>
+        </button>
+      </div>
+    </div>
+
     <div class="premium-card bg-white p-6 overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-xs text-left border-collapse">
           <thead>
             <tr class="bg-neutral-50 text-neutral-500 font-bold border-b border-neutral-100">
               <th class="p-3">Ref. Transacción</th>
+              <th class="p-3">Miembro</th>
               <th class="p-3">Método</th>
               <th class="p-3">Fecha de Cobro</th>
               <th class="p-3">Procesado por</th>
@@ -141,8 +289,12 @@ async function confirmRefund() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="pay in payments" :key="pay.id" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
+            <tr v-for="pay in filteredPayments" :key="pay.id" class="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
               <td class="p-3 font-mono font-semibold text-neutral-700">{{ pay.referenceNumber }}</td>
+              <td class="p-3 font-bold text-white">
+                {{ pay.memberName }}
+                <span class="block text-[10px] text-neutral-400 font-mono font-normal mt-0.5">{{ pay.memberNumber }}</span>
+              </td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.paymentMethodName }}</td>
               <td class="p-3 text-neutral-500">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.processedByName || 'Sistema' }}</td>
@@ -166,8 +318,21 @@ async function confirmRefund() {
                 <span v-else class="text-[10px] text-neutral-400 font-medium italic">N/A</span>
               </td>
             </tr>
-            <tr v-if="payments.length === 0">
-              <td colspan="7" class="p-4 text-center text-neutral-400">No existen registros de pago en la base de datos.</td>
+            <tr v-if="filteredPayments.length === 0">
+              <td colspan="8" class="p-12 text-center">
+                <div class="flex flex-col items-center justify-center space-y-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+                  </svg>
+                  <h4 class="text-sm font-bold text-neutral-300">No se encontraron transacciones con los filtros seleccionados.</h4>
+                  <button 
+                    @click="clearFilters"
+                    class="bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
