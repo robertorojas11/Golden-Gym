@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
+import { useSyncStore } from '../stores/sync.store';
 
 const authStore = useAuthStore();
+const syncStore = useSyncStore();
 const staff = ref<any[]>([]);
 
 const defaultStaff = [
@@ -107,6 +109,7 @@ function saveStaff() {
       staff.value[idx].roleName = staffForm.value.roleName;
     }
     triggerToast('Información de personal actualizada correctamente.');
+    syncStore.registerModification('EDICION_PERSONAL', `Personal actualizado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
   } else {
     const newStaff = {
       id: Date.now().toString(),
@@ -118,6 +121,7 @@ function saveStaff() {
     };
     staff.value.push(newStaff);
     triggerToast('Nuevo personal registrado correctamente.');
+    syncStore.registerModification('CREACION_PERSONAL', `Personal registrado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
   }
   localStorage.setItem('gg_staff', JSON.stringify(staff.value));
   closeAddEditModal();
@@ -141,6 +145,7 @@ function confirmDeactivate() {
   }
   localStorage.setItem('gg_staff', JSON.stringify(staff.value));
   triggerToast(`Personal ${selectedStaff.value.firstName} desactivado correctamente.`);
+  syncStore.registerModification('DESACTIVACION_PERSONAL', `Personal desactivado: ${selectedStaff.value.firstName} ${selectedStaff.value.lastName}`);
   closeDeactivateModal();
 }
 
@@ -151,6 +156,7 @@ function reactivateStaff(user: any) {
   }
   localStorage.setItem('gg_staff', JSON.stringify(staff.value));
   triggerToast(`Personal ${user.firstName} reactivado correctamente.`);
+  syncStore.registerModification('REACTIVACION_PERSONAL', `Personal reactivado: ${user.firstName} ${user.lastName}`);
 }
 
 // Keyboard focus trap watch blocks

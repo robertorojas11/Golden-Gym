@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { useSyncStore } from './sync.store';
 
 export const useMemberStore = defineStore('member', () => {
+  const syncStore = useSyncStore();
   const members = ref<any[]>([]);
   const selectedMember = ref<any | null>(null);
   const plans = ref<any[]>([]);
@@ -73,7 +75,9 @@ export const useMemberStore = defineStore('member', () => {
       });
       if (res.ok) {
         await fetchMembers();
-        return await res.json();
+        const data = await res.json();
+        syncStore.registerModification('CREACION_MIEMBRO', `Miembro registrado: ${member.firstName} ${member.lastName}`);
+        return data;
       }
     } catch (e) {
       console.error(e);
@@ -91,6 +95,7 @@ export const useMemberStore = defineStore('member', () => {
       if (res.ok) {
         await fetchMemberDetail(id);
         await fetchMembers();
+        syncStore.registerModification('EDICION_MIEMBRO', `Datos actualizados de: ${member.firstName} ${member.lastName}`);
         return true;
       }
     } catch (e) {
@@ -101,6 +106,8 @@ export const useMemberStore = defineStore('member', () => {
 
   async function deactivateMember(id: string) {
     try {
+      const member = members.value.find(m => m.id === id);
+      const name = member ? `${member.firstName} ${member.lastName}` : id;
       const res = await fetch(`${API_URL}/members/${id}`, {
         method: 'DELETE',
         headers: getHeaders(),
@@ -108,6 +115,7 @@ export const useMemberStore = defineStore('member', () => {
       if (res.ok) {
         selectedMember.value = null;
         await fetchMembers();
+        syncStore.registerModification('DESACTIVACION_MIEMBRO', `Miembro desactivado: ${name}`);
         return true;
       }
     } catch (e) {
@@ -118,6 +126,11 @@ export const useMemberStore = defineStore('member', () => {
 
   async function assignMembership(memberId: string, planId: string) {
     try {
+      const member = members.value.find(m => m.id === memberId);
+      const plan = plans.value.find(p => p.id === planId);
+      const memberName = member ? `${member.firstName} ${member.lastName}` : memberId;
+      const planName = plan ? plan.name : planId;
+      
       const res = await fetch(`${API_URL}/memberships/assign`, {
         method: 'POST',
         headers: getHeaders(),
@@ -125,7 +138,9 @@ export const useMemberStore = defineStore('member', () => {
       });
       if (res.ok) {
         await fetchMemberDetail(memberId);
-        return await res.json();
+        const data = await res.json();
+        syncStore.registerModification('ASIGNACION_PLAN', `Plan ${planName} asignado a ${memberName}`);
+        return data;
       }
     } catch (e) {
       console.error(e);
@@ -135,6 +150,10 @@ export const useMemberStore = defineStore('member', () => {
 
   async function registerPayment(payment: any) {
     try {
+      const member = members.value.find(m => m.id === payment.memberId);
+      const memberName = member ? `${member.firstName} ${member.lastName}` : payment.memberId;
+      const amountMXN = payment.amount / 100;
+
       const res = await fetch(`${API_URL}/payments`, {
         method: 'POST',
         headers: getHeaders(),
@@ -142,6 +161,7 @@ export const useMemberStore = defineStore('member', () => {
       });
       if (res.ok) {
         await fetchMemberDetail(payment.memberId);
+        syncStore.registerModification('REGISTRO_PAGO', `Pago registrado para ${memberName}: $${amountMXN.toLocaleString('es-MX')} MXN`);
         return true;
       }
     } catch (e) {
@@ -159,6 +179,7 @@ export const useMemberStore = defineStore('member', () => {
       });
       if (res.ok) {
         await fetchPlans();
+        syncStore.registerModification('EDICION_PLAN', `Plan actualizado: ${planData.name}`);
         return true;
       }
     } catch (e) {
@@ -175,6 +196,7 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(membershipData),
       });
       if (res.ok) {
+        syncStore.registerModification('EDICION_MEMBRESIA', `Membresía modificada ID: ${id}`);
         return true;
       }
     } catch (e) {
