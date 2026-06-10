@@ -79,9 +79,9 @@ INSERT INTO members (id, member_number, first_name, last_name, gender, birth_dat
 
 -- 8. Agregar Fotos de Miembros
 INSERT INTO member_photos (id, member_id, photo_url, is_primary) VALUES
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'https://api.dicebear.com/7.x/adventurer/svg?seed=Roberto', TRUE),
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'https://api.dicebear.com/7.x/adventurer/svg?seed=Carla', TRUE),
-(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'https://api.dicebear.com/7.x/adventurer/svg?seed=John', TRUE);
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&h=256&q=80', TRUE),
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&h=256&q=80', TRUE),
+(uuid_generate_v4(), 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80', TRUE);
 
 -- 9. Agregar Notas de Miembros
 INSERT INTO member_notes (id, member_id, author_id, note) VALUES
