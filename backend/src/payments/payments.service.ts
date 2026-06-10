@@ -6,24 +6,30 @@ import { MockDatabase, Payment, Membership } from '../mock-db';
 export class PaymentsService {
   constructor(private db: MockDatabase) {}
 
-  findAll(): Payment[] {
+  findAll(): any[] {
     return this.db.payments.map((p) => {
       const user = this.db.users.find((u) => u.id === p.processedBy);
+      const member = this.db.members.find((m) => m.id === p.memberId);
       return {
         ...p,
         processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+        memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
+        memberNumber: member ? member.memberNumber : 'N/A',
       };
     });
   }
 
-  findMemberPayments(memberId: string): Payment[] {
+  findMemberPayments(memberId: string): any[] {
     return this.db.payments
       .filter((p) => p.memberId === memberId)
       .map((p) => {
         const user = this.db.users.find((u) => u.id === p.processedBy);
+        const member = this.db.members.find((m) => m.id === p.memberId);
         return {
           ...p,
           processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+          memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
+          memberNumber: member ? member.memberNumber : 'N/A',
         };
       });
   }
