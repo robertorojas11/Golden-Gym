@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 
 const authStore = useAuthStore();
@@ -25,21 +25,96 @@ onMounted(() => {
   fetchPayments();
 });
 
-async function handleRefund(id: string) {
-  const ok = confirm('¿Estás seguro de que deseas reembolsar este pago? Esto cancelará la membresía del miembro de inmediato.');
-  if (ok) {
+// Modal state
+const showRefundModal = ref(false);
+const refundingPaymentId = ref<string | null>(null);
+const refundingPaymentRef = ref<string | null>(null);
+const isRefunding = ref(false);
+
+const confirmBtnRef = ref<HTMLElement | null>(null);
+const cancelBtnRef = ref<HTMLElement | null>(null);
+
+// Success toast state
+const toastMessage = ref('');
+const showToast = ref(false);
+
+function triggerToast(message: string) {
+  toastMessage.value = message;
+  showToast.value = true;
+  setTimeout(() => {
+    showToast.value = false;
+  }, 3500);
+}
+
+function openRefundModal(id: string, reference: string) {
+  refundingPaymentId.value = id;
+  refundingPaymentRef.value = reference;
+  showRefundModal.value = true;
+}
+
+function closeRefundModal() {
+  showRefundModal.value = false;
+  refundingPaymentId.value = null;
+  refundingPaymentRef.value = null;
+}
+
+watch(showRefundModal, (newVal) => {
+  if (newVal) {
+    window.addEventListener('keydown', handleModalKeys);
+    setTimeout(() => {
+      cancelBtnRef.value?.focus();
+    }, 50);
+  } else {
+    window.removeEventListener('keydown', handleModalKeys);
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleModalKeys);
+});
+
+function handleModalKeys(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    closeRefundModal();
+  }
+  if (e.key === 'Tab') {
+    const activeEl = document.activeElement;
+    if (e.shiftKey) {
+      if (activeEl === cancelBtnRef.value) {
+        confirmBtnRef.value?.focus();
+        e.preventDefault();
+      }
+    } else {
+      if (activeEl === confirmBtnRef.value) {
+        cancelBtnRef.value?.focus();
+        e.preventDefault();
+      }
+    }
+  }
+}
+
+async function confirmRefund() {
+  if (!refundingPaymentId.value) return;
+  isRefunding.value = true;
+  try {
     const token = authStore.token;
-    const res = await fetch(`${API_URL}/payments/${id}/refund`, {
+    const res = await fetch(`${API_URL}/payments/${refundingPaymentId.value}/refund`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${token}` },
     });
     if (res.ok) {
-      alert('Reembolso procesado correctamente.');
+      triggerToast(`Reembolso del pago ${refundingPaymentRef.value} procesado correctamente.`);
+      closeRefundModal();
       fetchPayments();
     } else {
       const err = await res.json();
-      alert(err.message || 'Error al procesar el reembolso.');
+      triggerToast(err.message || 'Error al procesar el reembolso.');
     }
+  } catch (error) {
+    console.error(error);
+    triggerToast('Ocurrió un error inesperado.');
+  } finally {
+    isRefunding.value = false;
   }
 }
 </script>
@@ -83,7 +158,7 @@ async function handleRefund(id: string) {
               <td v-if="authStore.hasPermission('manage:payments')" class="p-3 text-right">
                 <button 
                   v-if="pay.status === 'PAID'"
-                  @click="handleRefund(pay.id)"
+                  @click="openRefundModal(pay.id, pay.referenceNumber)"
                   class="bg-neutral-100 hover:bg-red-50 hover:text-red-600 text-neutral-600 px-3 py-1 rounded text-[10px] font-bold transition-all border border-neutral-200"
                 >
                   Reembolsar
@@ -98,5 +173,63 @@ async function handleRefund(id: string) {
         </table>
       </div>
     </div>
+
+    <!-- MODAL DE CONFIRMACIÓN DE REEMBOLSO -->
+    <div 
+      v-if="showRefundModal" 
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="refund-dialog-title"
+    >
+      <div class="bg-neutral-950 border border-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+        <div class="space-y-2 text-center md:text-left">
+          <h3 id="refund-dialog-title" class="text-base font-bold text-white uppercase tracking-widest flex items-center justify-center md:justify-start space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>Procesar Reembolso</span>
+          </h3>
+          <p class="text-sm text-neutral-200 pt-2">
+            ¿Estás seguro de que deseas reembolsar la transacción <strong class="text-white font-mono font-bold">{{ refundingPaymentRef }}</strong>?
+          </p>
+          <p class="text-xs text-neutral-400">
+            Esta acción es destructiva y cancelará la membresía del miembro asociado de inmediato.
+          </p>
+        </div>
+
+        <div class="flex space-x-3 pt-4 border-t border-neutral-900">
+          <button 
+            ref="cancelBtnRef"
+            type="button" 
+            @click="closeRefundModal"
+            class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 py-2.5 rounded-xl font-bold transition-all border border-neutral-800 text-xs"
+          >
+            Cancelar
+          </button>
+          <button 
+            ref="confirmBtnRef"
+            type="button"
+            @click="confirmRefund"
+            :disabled="isRefunding"
+            class="flex-1 bg-red-650 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold shadow-sm transition-all text-xs disabled:opacity-55"
+          >
+            {{ isRefunding ? 'Procesando...' : 'Confirmar Reembolso' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICACIÓN -->
+    <div 
+      v-if="showToast" 
+      class="fixed bottom-6 right-6 bg-[#FA2F2A] border border-red-500/30 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-center space-x-3 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 font-mono text-xs"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ toastMessage }}</span>
+    </div>
+
   </div>
 </template>
