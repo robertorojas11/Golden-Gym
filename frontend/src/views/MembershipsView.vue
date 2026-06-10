@@ -65,15 +65,6 @@ async function handleSave() {
           '!border-[#EF9F27] border-2 ring-1 ring-[#EF9F27]/10': plan.name === 'Anual Oro VIP'
         }"
       >
-        <!-- Top Badge for Flagship plan -->
-        <div 
-          v-if="plan.name === 'Anual Oro VIP'" 
-          class="absolute -top-3 left-6 bg-[#EF9F27] text-neutral-950 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center space-x-1 shadow-md select-none"
-        >
-          <span>⭐</span>
-          <span>Más Popular</span>
-        </div>
-
         <div class="space-y-2">
           <div class="flex justify-between items-start">
             <div class="space-y-1">
