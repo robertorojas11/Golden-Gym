@@ -446,6 +446,14 @@ function formatNumber(val: number) {
                 {{ log.accessGranted ? 'PERMITIDO' : 'RECHAZADO' }}
               </span>
             </div>
+
+            <div v-if="recent.recentAccesses.length === 0" class="flex flex-col items-center justify-center py-8 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              <p class="text-xs font-bold text-neutral-300">Sin accesos hoy</p>
+              <p class="text-[9px] text-neutral-500 mt-1 max-w-[180px]">No se ha registrado ningún ingreso en la terminal de acceso el día de hoy.</p>
+            </div>
           </div>
         </div>
         <div class="mt-4 pt-3 border-t border-neutral-900 flex justify-end">
@@ -469,6 +477,14 @@ function formatNumber(val: number) {
               <span class="text-[11px] font-semibold text-[#FFA624]">
                 Vence: {{ ms.endDate }}
               </span>
+            </div>
+
+            <div v-if="recent.upcomingExpirations.length === 0" class="flex flex-col items-center justify-center py-8 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p class="text-xs font-bold text-neutral-300">Sin vencimientos próximos</p>
+              <p class="text-[9px] text-neutral-500 mt-1 max-w-[180px]">No hay membresías que expiren en los próximos 7 días.</p>
             </div>
           </div>
         </div>
@@ -494,6 +510,14 @@ function formatNumber(val: number) {
                 <p class="text-xs font-bold text-neutral-900">${{ pay.amount }} MXN</p>
                 <p class="text-[9px] font-semibold text-emerald-600 uppercase">{{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}</p>
               </div>
+            </div>
+
+            <div v-if="recent.recentPayments.length === 0" class="flex flex-col items-center justify-center py-8 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-neutral-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p class="text-xs font-bold text-neutral-300">Sin cobros recientes</p>
+              <p class="text-[9px] text-neutral-500 mt-1 max-w-[180px]">No se han registrado pagos en la consola.</p>
             </div>
           </div>
         </div>
