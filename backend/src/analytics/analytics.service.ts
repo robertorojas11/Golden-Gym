@@ -55,7 +55,7 @@ export class AnalyticsService {
       { date: 'Jue', count: 30 },
       { date: 'Vie', count: 28 },
       { date: 'Sáb', count: 15 },
-      { date: 'Dom', count: 8 },
+      { date: 'Dom', count: 0 },
     ];
 
     // 2. Ingresos por mes (en pesos MXN)

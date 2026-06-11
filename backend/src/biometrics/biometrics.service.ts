@@ -74,7 +74,18 @@ export class BiometricsService {
       scannedAt: new Date().toISOString(),
     };
 
-    this.db.accessLogs.unshift(newLog); // Añadir al inicio
+    // Registrar bitácora de acceso (solo si es la primera del día para este miembro)
+    let duplicateCheck = false;
+    if (member && accessGranted) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      duplicateCheck = this.db.accessLogs.some(
+        (log) => log.memberId === member.id && log.accessGranted && log.scannedAt.startsWith(todayStr),
+      );
+    }
+
+    if (!duplicateCheck) {
+      this.db.accessLogs.unshift(newLog); // Añadir al inicio
+    }
 
     return {
       memberId: member?.id || null,
