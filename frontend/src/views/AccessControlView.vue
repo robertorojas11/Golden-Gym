@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useBiometricStore } from '../stores/biometric.store';
+import { useMemberStore } from '../stores/member.store';
 
 const store = useBiometricStore();
+const memberStore = useMemberStore();
+
 const timeString = ref('');
 const dateString = ref('');
+const selectedSimMemberId = ref('');
 
 let clockInterval: any = null;
 
@@ -21,6 +25,7 @@ function updateClock() {
 
 onMounted(() => {
   store.fetchLogs();
+  memberStore.fetchMembers();
   updateClock();
   clockInterval = setInterval(updateClock, 1000);
 });
@@ -204,39 +209,44 @@ onUnmounted(() => {
           <div class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
             <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Simulador Biométrico</h3>
             
-            <div class="space-y-3">
-              <button 
-                @click="store.triggerSimulatedScan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001')"
-                class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group"
-              >
-                <div>
-                  <p class="text-sm font-semibold text-white">Simular Entrada (Roberto)</p>
-                  <p class="text-[10px] text-neutral-400 font-mono">Verifica membresía activa en MXN</p>
-                </div>
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-all"></span>
-              </button>
+            <div class="space-y-4 pt-1">
+              <!-- Selector de cualquier miembro -->
+              <div class="space-y-2">
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Simular cualquier usuario</label>
+                <select 
+                  v-model="selectedSimMemberId" 
+                  class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#EF9F27]"
+                >
+                  <option value="">-- Seleccionar miembro --</option>
+                  <option v-for="m in memberStore.members" :key="m.id" :value="m.id">
+                    {{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})
+                  </option>
+                </select>
+              </div>
 
               <button 
-                @click="store.triggerSimulatedScan('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003')"
-                class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group"
+                @click="store.triggerSimulatedScan(selectedSimMemberId)"
+                :disabled="!selectedSimMemberId || store.isScanning"
+                class="w-full py-2.5 bg-[#EF9F27] hover:bg-[#d97706] disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer"
               >
-                <div>
-                  <p class="text-sm font-semibold text-white">Simular Entrada (Juan Pérez)</p>
-                  <p class="text-[10px] text-neutral-400 font-mono">Planes diarios vencidos</p>
-                </div>
-                <span class="w-2.5 h-2.5 rounded-full bg-red-500 group-hover:scale-125 transition-all"></span>
+                {{ store.isScanning ? 'Escaneando...' : 'Escanear Huella del Miembro' }}
               </button>
 
-              <button 
-                @click="store.triggerSimulatedScan(undefined, 'denied_unknown')"
-                class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group"
-              >
-                <div>
-                  <p class="text-sm font-semibold text-white">Simular Huella Desconocida</p>
-                  <p class="text-[10px] text-neutral-400 font-mono">Sin correspondencia biométrica</p>
-                </div>
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 group-hover:scale-125 transition-all"></span>
-              </button>
+              <div class="border-t border-neutral-900 pt-3 mt-1 space-y-2">
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Casos de prueba</label>
+                
+                <button 
+                  @click="store.triggerSimulatedScan(undefined, 'denied_unknown')"
+                  :disabled="store.isScanning"
+                  class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group disabled:opacity-40 cursor-pointer"
+                >
+                  <div>
+                    <p class="text-xs font-semibold text-white">Simular Huella Desconocida</p>
+                    <p class="text-[9px] text-neutral-500 font-mono">Sin correspondencia biométrica</p>
+                  </div>
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 group-hover:scale-125 transition-all"></span>
+                </button>
+              </div>
             </div>
           </div>
 
