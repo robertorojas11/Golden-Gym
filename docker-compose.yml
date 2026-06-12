@@ -6,15 +6,15 @@ services:
     container_name: goldengym-postgres
     restart: always
     environment:
-      POSTGRES_USER: gym_admin
-      POSTGRES_PASSWORD: gym_password_secure_local_188
-      POSTGRES_DB: goldengym_access
+      POSTGRES_USER: ${POSTGRES_USER:-gym_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gym_password_secure_local_188}
+      POSTGRES_DB: ${POSTGRES_DB:-goldengym_access}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
-      - ./database/seeds.sql:/docker-entrypoint-initdb.d/2-seeds.sql
+      - ./database/${SEEDS_FILE:-seeds.sql}:/docker-entrypoint-initdb.d/2-seeds.sql
     networks:
       - gym-network
 
@@ -25,14 +25,14 @@ services:
     container_name: goldengym-backend
     restart: always
     environment:
-      NODE_ENV: production
-      PORT: 3000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: gym_admin
-      DB_PASSWORD: gym_password_secure_local_188
-      DB_NAME: goldengym_access
-      JWT_SECRET: super_secure_local_key_889218
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-gym_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-gym_password_secure_local_188}
+      DB_NAME: ${DB_NAME:-goldengym_access}
+      JWT_SECRET: ${JWT_SECRET:-super_secure_local_key_889218}
     ports:
       - "3000:3000"
     depends_on:
