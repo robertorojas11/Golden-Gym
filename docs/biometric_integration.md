@@ -1,36 +1,69 @@
-# Biometric Hardware Integration Plan - Gym Access Control
+# Biometric Hardware Integration Roadmap (ZKTeco ZK9500)
 
-This document outlines how to bridge the software system with real USB fingerprint scanners (e.g. DigitalPersona U.are.U 4500, SecuGen Hamster, or Suprema BioMini) in future development phases.
-
----
-
-## 1. Hardware Communication Architecture
-
-Web applications inside a browser cannot query USB hardware ports directly. To resolve this boundary, choose one of the following integration paths:
-
-### Option A: Local WebSocket Daemon (Recommended)
-Develop a lightweight native service running on the host system (e.g., in Python or C# using the scanner SDK).
-```
-[USB Scanner] ➔ [Local Python/C# Daemon] ➔ (WebSocket server: ws://localhost:9000) ➔ [Vue 3 SPA client]
-```
-- **Pros**: Easy to deploy on reception desktops; does not require exposing hardware nodes inside Docker container spaces.
-- **Cons**: Requires installing a small background service on the local machine outside Docker.
-
-### Option B: Node Native Bindings in Backend
-Mount the USB bus inside the backend Docker container (e.g., mapping `/dev/bus/usb` on Linux hosts) and use native Node modules:
-- Use `node-usb` or dynamic linker packages like `ffi-napi` to load the vendor `.so` or `.dll` library.
-- Expose the device handles directly to the NestJS Biometrics Service.
+This document describes the implementation architecture for connecting the system to the **ZKTeco ZK9500 USB biometric scanner** using the official **ZKFinger SDK**.
 
 ---
 
-## 2. API Schema Compatibility
+## 1. ZKTeco ZK9500 SDK & Driver Details
 
-The biometrics module is designed to accept replacement hardware inputs. The scanner daemon should post to the existing `/biometric/scan` endpoint:
+The ZK9500 sensor communicates via USB and utilizes the **ZKFinger SDK** (available for Windows, Linux, and Android):
+* **Driver**: ZKUsbKeeper / ZKFP driver.
+* **Core Library**: `libzkfp.dll` (Windows) or `libzkfp.so` (Linux).
+* **Minutiae Template Format**: Proprietary ZKFinger minutiae extraction templates (usually 512-byte or 1024-byte arrays represented as Base64 strings).
+
+---
+
+## 2. Hardware Bridge Architecture
+
+Since standard browser security blocks direct access to local USB ports, a middleware daemon is required to communicate between the ZK9500 SDK and the web client.
+
+```
+[ZKTeco ZK9500 USB Scanner]
+          │ (USB Serial connection)
+          ▼
+[Local Desktop WebSocket Daemon] (Python Ctypes / C# ZKFinger Wrapper)
+          │
+          ├─► Enrolls / extracts fingerprint templates (Base64 ANSI/ISO)
+          │
+          ▼ (Push event via WebSocket: ws://localhost:9000)
+[Vue 3 SPA client (Access Control Console)]
+          │ (Post request)
+          ▼
+[NestJS Monolithic API] ──► [PostgreSQL Database]
+```
+
+### Option A: Local WebSocket Daemon (Recommended for Windows 11 Mini PC)
+Develop a simple background console application in C# or Python on the Intel Pentium Mini PC:
+1. Load `libzkfp` DLL dynamic bindings.
+2. Initialize the sensor hook: `ZKFP_Init()`.
+3. Open a loop or event hook listening for the scan trigger.
+4. When a finger is placed, capture the template array, convert it to a Base64 string, and push it through a local WebSocket server (`ws://localhost:9000`) to the Vue 3 check-in page.
+
+---
+
+## 3. Database & API Schema Mapping
+
+The database schema includes support for associating member records with their enrolled biometric templates:
+
+### 1. Registering/Enrolling a Fingerprint template:
+When enrolling a member, the daemon sends 3 sequential scans to extract the reference template. The frontend sends this to:
+`POST /members/:id/biometrics`
 ```json
 {
-  "fingerprintTemplate": "BASE64_ENROLLED_MINUTIAE_DATA",
-  "deviceSerial": "DP-4500-1288A"
+  "templateData": "BASE64_ZKTECO_ENROLLED_TEMPLATE_BLOB",
+  "fingerIndex": 1
 }
 ```
-The NestJS controller can then process this template using matching algorithms (e.g., ISO/IEC 19794-2 minutiae comparison) against base64 strings saved in the `member_photos` or a new `member_biometrics` table.
-.
+
+### 2. Access Verification / Match:
+When a member places their finger on the ZK9500 at the counter:
+1. The daemon captures the quick template.
+2. It sends the template to the NestJS API:
+   `POST /biometric/scan`
+   ```json
+   {
+     "fingerprintTemplate": "BASE64_ZKTECO_CURRENT_SCAN_BLOB"
+   }
+   ```
+3. The NestJS backend loads active member templates from PostgreSQL and executes the ZKFinger match algorithm (`ZKFP_Match(regTemplate, scanTemplate)`) using a native DLL wrapper or delegates the match check to the local daemon before registering the entry log.
+4. Upon successful match, it registers an access log entry (`accessLogs`) in PostgreSQL and returns the member's eligibility status.
