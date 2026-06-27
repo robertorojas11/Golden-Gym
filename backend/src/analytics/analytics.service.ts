@@ -47,32 +47,41 @@ export class AnalyticsService {
   }
 
   getCharts() {
-    // 1. Accesos diarios
-    const dailyAccesses = [
-      { date: 'Lun', count: 18 },
-      { date: 'Mar', count: 24 },
-      { date: 'Mié', count: 22 },
-      { date: 'Jue', count: 30 },
-      { date: 'Vie', count: 28 },
-      { date: 'Sáb', count: 15 },
-      { date: 'Dom', count: 0 },
-    ];
+    // 1. Accesos diarios de la semana actual (Lunes a Domingo)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
 
-    // 2. Ingresos por mes (en pesos MXN)
-    const monthlyRevenue = [
-      { month: 'Ene', amount: 4500 },
-      { month: 'Feb', amount: 5200 },
-      { month: 'Mar', amount: 6100 },
-      { month: 'Abr', amount: 5800 },
-      { month: 'May', amount: 7200 },
-      { month: 'Jun', amount: 8500 },
-      { month: 'Jul', amount: 0 },
-      { month: 'Ago', amount: 0 },
-      { month: 'Sep', amount: 0 },
-      { month: 'Oct', amount: 0 },
-      { month: 'Nov', amount: 0 },
-      { month: 'Dic', amount: 0 },
-    ];
+    const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const dailyAccesses = dayNames.map((name, index) => {
+      const dayDate = new Date(monday);
+      dayDate.setDate(monday.getDate() + index);
+      const dayStr = dayDate.toISOString().split('T')[0];
+
+      const count = this.db.accessLogs.filter((log) => {
+        return log.scannedAt.startsWith(dayStr) && log.accessGranted;
+      }).length;
+
+      return { date: name, count };
+    });
+
+    // 2. Ingresos mensuales del año actual (Pesos Mexicanos MXN)
+    const currentYear = new Date().getFullYear();
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const monthlyRevenue = monthNames.map((name, index) => {
+      const monthNumStr = String(index + 1).padStart(2, '0');
+      const yearMonthStr = `${currentYear}-${monthNumStr}`;
+
+      const amountCents = this.db.payments
+        .filter((p) => p.paymentDate.startsWith(yearMonthStr) && p.status === 'PAID')
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      return { month: name, amount: amountCents / 100 };
+    });
 
     // 3. Distribución de membresías
     const distribution = [

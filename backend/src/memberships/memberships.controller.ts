@@ -27,6 +27,14 @@ export class MembershipsController {
     return this.service.assignPlan(body.memberId, body.planId);
   }
 
+  @Post('plans')
+  createPlan(@Body() body: any, @Req() req: any) {
+    if (req.user?.roleName !== 'owner') {
+      throw new ForbiddenException('Only owners can create plans');
+    }
+    return this.service.createPlan(body);
+  }
+
   @Put('plans/:id')
   updatePlan(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     if (req.user?.roleName !== 'owner') {

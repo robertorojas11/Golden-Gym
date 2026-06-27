@@ -55,7 +55,7 @@ export class MembersService {
       });
   }
 
-  create(memberData: Partial<Member>, userId?: string): Member {
+  async create(memberData: Partial<Member>, userId?: string): Promise<Member> {
     const nextNum = 1000 + this.db.members.length + 1;
     const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
     const newMember: Member = {
@@ -83,10 +83,11 @@ export class MembersService {
       createdByName: user ? `${user.firstName} ${user.lastName}` : 'Lucas Vance',
     };
     this.db.members.push(newMember);
+    await this.db.saveMember(newMember);
     return newMember;
   }
 
-  update(id: string, updateData: Partial<Member>, userId?: string): Member {
+  async update(id: string, updateData: Partial<Member>, userId?: string): Promise<Member> {
     const member = this.findOne(id);
     const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
     Object.assign(member, {
@@ -94,21 +95,53 @@ export class MembersService {
       updatedBy: userId,
       updatedByName: user ? `${user.firstName} ${user.lastName}` : undefined,
     });
+    await this.db.saveMember(member);
     return member;
   }
 
-  deactivate(id: string): Member {
+  async deactivate(id: string): Promise<Member> {
     const member = this.findOne(id);
     member.isActive = false;
+    await this.db.saveMember(member);
     return member;
   }
 
-  addNote(id: string, note: string): Member {
+  async addNote(id: string, note: string): Promise<Member> {
     const member = this.findOne(id);
     if (!member.notes) {
       member.notes = [];
     }
     member.notes.push(note);
+    await this.db.saveMember(member);
     return member;
+  }
+
+  findDocuments(memberId: string) {
+    return this.db.documents.filter((d) => d.memberId === memberId);
+  }
+
+  async addDocument(memberId: string, data: { summary: string; fileData: string; mimeType?: string }) {
+    this.findOne(memberId); // Throws if member not found
+    const newDoc = {
+      id: randomUUID(),
+      memberId,
+      summary: data.summary,
+      fileData: data.fileData,
+      mimeType: data.mimeType || 'application/pdf',
+      uploadedAt: new Date().toISOString(),
+    };
+    this.db.documents.push(newDoc);
+    await this.db.saveDocument(newDoc);
+    return newDoc;
+  }
+
+  async deleteDocument(memberId: string, docId: string) {
+    const idx = this.db.documents.findIndex((d) => d.id === docId && d.memberId === memberId);
+    if (idx === -1) {
+      throw new NotFoundException('Document not found');
+    }
+    this.db.documents.splice(idx, 1);
+    await this.db.deleteDocument(docId);
+    return { success: true };
   }
 }

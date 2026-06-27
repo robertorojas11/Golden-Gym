@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useMemberStore } from '../stores/member.store';
@@ -81,6 +81,74 @@ const memberForm = ref({
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
   notes: '',
+  photoUrl: '',
+});
+
+const cameraActive = ref(false);
+const capturedPhoto = ref('');
+const videoRef = ref<HTMLVideoElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+let cameraStream: MediaStream | null = null;
+
+function triggerFileSelect() {
+  fileInputRef.value?.click();
+}
+
+function onFileChange(e: any) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (event: any) => {
+      capturedPhoto.value = event.target.result;
+      memberForm.value.photoUrl = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+async function startCamera() {
+  capturedPhoto.value = '';
+  cameraActive.value = true;
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    if (videoRef.value) {
+      videoRef.value.srcObject = cameraStream;
+    }
+  } catch (err) {
+    console.error("Error accessing camera: ", err);
+    cameraActive.value = false;
+  }
+}
+
+function captureSnapshot() {
+  if (videoRef.value && cameraStream) {
+    const video = videoRef.value;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      capturedPhoto.value = dataUrl;
+      memberForm.value.photoUrl = dataUrl;
+    }
+    stopCamera();
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  cameraActive.value = false;
+}
+
+watch(showAddMember, (newVal) => {
+  if (!newVal) {
+    stopCamera();
+  }
 });
 
 async function saveMember() {
@@ -108,7 +176,9 @@ async function saveMember() {
       emergencyContactPhone: '',
       emergencyContactRelationship: '',
       notes: '',
+      photoUrl: '',
     };
+    capturedPhoto.value = '';
     fetchDashboardData();
   }
 }
@@ -617,6 +687,41 @@ function formatNumber(val: number) {
           <div>
             <label class="block text-xs font-semibold text-neutral-500 uppercase mb-2">Observaciones</label>
             <textarea v-model="memberForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Detalles de salud, preferencias de entrenamiento, etc."></textarea>
+          </div>
+
+          <hr class="border-neutral-100" />
+
+          <div>
+            <label class="block text-xs font-semibold text-neutral-500 uppercase mb-2">Foto de Perfil</label>
+            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+              <div class="w-32 h-32 border rounded-lg bg-neutral-100 flex items-center justify-center overflow-hidden relative">
+                <video v-if="cameraActive && !capturedPhoto" ref="videoRef" autoplay playsinline class="w-full h-full object-cover"></video>
+                <img v-else-if="capturedPhoto || memberForm.photoUrl" :src="capturedPhoto || memberForm.photoUrl" class="w-full h-full object-cover" />
+                <div v-else class="text-neutral-400 text-[10px] text-center p-2 font-mono">SIN FOTO</div>
+              </div>
+              
+              <div class="flex flex-col space-y-2">
+                <input type="file" ref="fileInputRef" accept="image/*" class="hidden" @change="onFileChange" />
+                <button type="button" @click="triggerFileSelect" class="px-3 py-1.5 border rounded-lg text-xs font-semibold text-neutral-600 hover:bg-neutral-50 flex items-center justify-center space-x-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>Subir Archivo</span>
+                </button>
+
+                <button v-if="!cameraActive" type="button" @click="startCamera" class="px-3 py-1.5 border rounded-lg text-xs font-semibold text-neutral-600 hover:bg-neutral-50 flex items-center justify-center space-x-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 11-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Usar Cámara</span>
+                </button>
+                <div v-else class="flex space-x-2">
+                  <button type="button" @click="captureSnapshot" class="px-2 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700">Tomar Foto</button>
+                  <button type="button" @click="stopCamera" class="px-2 py-1.5 bg-neutral-600 text-white rounded-lg text-xs font-semibold hover:bg-neutral-700">Cancelar</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="flex justify-end space-x-3 pt-4 border-t border-neutral-100">

@@ -25,7 +25,7 @@ export class MembershipsService {
     );
   }
 
-  assignPlan(memberId: string, planId: string): Membership {
+  async assignPlan(memberId: string, planId: string): Promise<Membership> {
     const plan = this.db.plans.find((p) => p.id === planId);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
@@ -57,28 +57,45 @@ export class MembershipsService {
     };
 
     this.db.memberships.push(newMembership);
+    await this.db.saveMembership(newMembership);
     return newMembership;
   }
 
-  cancelMembership(id: string): Membership {
+  async cancelMembership(id: string): Promise<Membership> {
     const ms = this.db.memberships.find((m) => m.id === id);
     if (!ms) {
       throw new NotFoundException('Membership not found');
     }
     ms.status = 'CANCELLED';
+    await this.db.saveMembership(ms);
     return ms;
   }
 
-  activateMembership(id: string): Membership {
+  async activateMembership(id: string): Promise<Membership> {
     const ms = this.db.memberships.find((m) => m.id === id);
     if (!ms) {
       throw new NotFoundException('Membership not found');
     }
     ms.status = 'ACTIVE';
+    await this.db.saveMembership(ms);
     return ms;
   }
 
-  updatePlan(id: string, updateData: Partial<MembershipPlan>): MembershipPlan {
+  async createPlan(planData: Partial<MembershipPlan>): Promise<MembershipPlan> {
+    const newPlan: MembershipPlan = {
+      id: randomUUID(),
+      name: planData.name || '',
+      price: planData.price || 0,
+      durationDays: planData.durationDays || 30,
+      description: planData.description || '',
+      isActive: planData.isActive !== false,
+    };
+    this.db.plans.push(newPlan);
+    await this.db.savePlan(newPlan);
+    return newPlan;
+  }
+
+  async updatePlan(id: string, updateData: Partial<MembershipPlan>): Promise<MembershipPlan> {
     const plan = this.db.plans.find((p) => p.id === id);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
@@ -88,10 +105,11 @@ export class MembershipsService {
     if (updateData.durationDays !== undefined) plan.durationDays = updateData.durationDays;
     if (updateData.description !== undefined) plan.description = updateData.description;
     if (updateData.isActive !== undefined) plan.isActive = updateData.isActive;
+    await this.db.savePlan(plan);
     return plan;
   }
 
-  updateMembership(id: string, updateData: Partial<Membership>): Membership {
+  async updateMembership(id: string, updateData: Partial<Membership>): Promise<Membership> {
     const ms = this.db.memberships.find((m) => m.id === id);
     if (!ms) {
       throw new NotFoundException('Membership not found');
@@ -106,6 +124,7 @@ export class MembershipsService {
         ms.planName = plan.name;
       }
     }
+    await this.db.saveMembership(ms);
     return ms;
   }
 }

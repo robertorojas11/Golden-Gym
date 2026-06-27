@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_name VARCHAR(50) NOT NULL,
     role_id UUID NOT NULL REFERENCES roles(id),
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    must_change_password BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -265,6 +266,19 @@ CREATE TABLE IF NOT EXISTS backup_history (
 );
 
 -- -----------------------------------------------------
+-- Table: member_documents
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    summary VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    mime_type VARCHAR(100) DEFAULT 'application/pdf' NOT NULL,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+
+-- -----------------------------------------------------
 -- INDEXES FOR PERFORMANCE
 -- -----------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
@@ -274,3 +288,5 @@ CREATE INDEX IF NOT EXISTS idx_memberships_member_status ON memberships(member_i
 CREATE INDEX IF NOT EXISTS idx_access_logs_member_scanned ON access_logs(member_id, scanned_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payments_member_date ON payments(member_id, payment_date DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_member_documents_member ON member_documents(member_id) WHERE deleted_at IS NULL;
+
