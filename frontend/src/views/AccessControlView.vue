@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useBiometricStore } from '../stores/biometric.store';
 import { useMemberStore } from '../stores/member.store';
 
@@ -9,6 +9,30 @@ const memberStore = useMemberStore();
 const timeString = ref('');
 const dateString = ref('');
 const selectedSimMemberId = ref('');
+const manualSearchQuery = ref('');
+const showSearchResults = ref(false);
+
+const filteredMembers = computed(() => {
+  const q = manualSearchQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return memberStore.members.filter((m: any) => 
+    m.firstName.toLowerCase().includes(q) || 
+    m.lastName.toLowerCase().includes(q) || 
+    m.memberNumber.toLowerCase().includes(q)
+  );
+});
+
+function selectManualMember(member: any) {
+  selectedSimMemberId.value = member.id;
+  manualSearchQuery.value = `${member.firstName} ${member.lastName}`;
+  showSearchResults.value = false;
+}
+
+function clearManualSearch() {
+  manualSearchQuery.value = '';
+  selectedSimMemberId.value = '';
+  showSearchResults.value = false;
+}
 
 let clockInterval: any = null;
 
@@ -76,36 +100,32 @@ onUnmounted(() => {
             <!-- PASO 1: Estado de espera -->
             <div v-if="store.scanStep === 'waiting'" class="flex flex-col items-center space-y-6">
               <div 
-                @click="store.triggerSimulatedScan()"
-                class="w-32 h-32 rounded-full border border-neutral-800 bg-neutral-900/40 flex items-center justify-center cursor-pointer hover:border-red-500 hover:bg-neutral-900 transition-all duration-300 shadow-lg group relative"
+                class="w-32 h-32 rounded-full border border-neutral-800 bg-neutral-900/40 flex items-center justify-center relative shadow-lg"
               >
-                <!-- Anillo decorativo exterior -->
-                <div class="absolute inset-0 rounded-full border border-transparent group-hover:border-red-500/20 animate-pulse"></div>
-                
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-neutral-400 group-hover:text-[#FA2F2A] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a14 14 0 00-6-11.796m22.348 11.796c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 0019 11a14 14 0 00-6-11.796m-.75-3.47a12 12 0 10-1.5 0" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
               <div class="text-center">
-                <h3 class="text-xl font-bold tracking-wide text-white font-sans">Listo para Verificación</h3>
-                <p class="text-xs text-neutral-400 mt-2 font-mono">Coloque su huella en el lector para registrar su entrada</p>
+                <h3 class="text-xl font-bold tracking-wide text-white font-sans">Listo para Check-In</h3>
+                <p class="text-xs text-neutral-400 mt-2 font-sans">Busque y seleccione un miembro a la derecha para registrar asistencia</p>
               </div>
             </div>
 
-            <!-- PASO 2: Escaneando huella -->
+            <!-- PASO 2: Procesando registro -->
             <div v-if="store.scanStep === 'scanning'" class="flex flex-col items-center space-y-6">
               <div class="w-32 h-32 rounded-full bg-neutral-950 border-2 border-[#FA2F2A] flex items-center justify-center pulse-scan-red relative">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-[#FA2F2A]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a14 14 0 00-6-11.796m22.348 11.796c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 0019 11a14 14 0 00-6-11.796m-.75-3.47a12 12 0 10-1.5 0" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-[#FA2F2A] animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
               <div class="text-center">
-                <h3 class="text-xl font-bold tracking-wide text-[#FA2F2A] animate-pulse">Escaneando huella digital...</h3>
-                <p class="text-xs text-neutral-400 mt-2 font-mono">Capturando patrón biométrico</p>
+                <h3 class="text-xl font-bold tracking-wide text-[#FA2F2A] animate-pulse">Procesando registro...</h3>
+                <p class="text-xs text-neutral-400 mt-2 font-sans">Buscando información de asistencia</p>
               </div>
             </div>
 
-            <!-- PASO 3: Huella reconocida -->
+            <!-- PASO 3: Registro Encontrado -->
             <div v-if="store.scanStep === 'matched'" class="flex flex-col items-center space-y-6">
               <div class="w-32 h-32 rounded-full bg-neutral-950 border-2 border-amber-400 flex items-center justify-center relative">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -113,8 +133,8 @@ onUnmounted(() => {
                 </svg>
               </div>
               <div class="text-center">
-                <h3 class="text-xl font-bold tracking-wide text-amber-400">Huella Digital Reconocida</h3>
-                <p class="text-xs text-neutral-400 mt-2 font-mono">Buscando registro de membresía...</p>
+                <h3 class="text-xl font-bold tracking-wide text-amber-400 font-sans">Registro Encontrado</h3>
+                <p class="text-xs text-neutral-400 mt-2 font-sans">Validando vigencia de membresía...</p>
               </div>
             </div>
 
@@ -151,10 +171,10 @@ onUnmounted(() => {
                 </div>
 
                 <div class="text-center pt-2 flex flex-col items-center space-y-2">
-                  <button @click="store.resetScanner()" class="text-xs text-neutral-400 hover:text-white underline underline-offset-4 font-mono">
-                    Volver a escanear
+                  <button @click="store.resetScanner()" class="text-xs text-neutral-400 hover:text-white underline underline-offset-4 font-sans cursor-pointer">
+                    Siguiente Registro
                   </button>
-                  <p class="text-[10px] text-neutral-500 font-mono">El lector se restablecerá automáticamente en 40s</p>
+                  <p class="text-[10px] text-neutral-500 font-mono">La consola se restablecerá automáticamente en 40s</p>
                 </div>
               </div>
 
@@ -172,24 +192,24 @@ onUnmounted(() => {
                   </div>
                   <div class="space-y-1">
                     <h4 class="text-xl font-bold text-white">
-                      {{ store.activeResult.memberName || 'Usuario Desconocido' }}
+                      {{ store.activeResult.memberName || 'Folio Desconocido' }}
                     </h4>
-                    <p class="text-sm text-red-400 font-semibold uppercase tracking-wider mt-1">
-                      {{ store.activeResult.failureReason === 'MEMBRESIA_EXPIRADA' ? 'Membresía Vencida' : 'Huella no Encontrada o Rechazada' }}
+                    <p class="text-sm text-red-400 font-semibold uppercase tracking-wider mt-1 font-sans">
+                      {{ store.activeResult.failureReason === 'MEMBRESIA_EXPIRADA' ? 'Membresía Vencida' : 'Folio no Encontrado o Inválido' }}
                     </p>
                     <p class="text-xs text-neutral-400 px-4 pt-1 font-sans">
                       {{ store.activeResult.failureReason === 'MEMBRESIA_EXPIRADA' 
-                        ? `Tu plan ha expirado. Favor de acudir al mostrador de recepción para renovar tu acceso.` 
-                        : 'No logramos asociar esta huella con un miembro activo del gimnasio.' }}
+                        ? `El plan de este miembro ha expirado. Favor de renovar en recepción.` 
+                        : 'No logramos asociar este folio con un miembro del gimnasio.' }}
                     </p>
                   </div>
                 </div>
 
                 <div class="text-center pt-2 flex flex-col items-center space-y-2">
-                  <button @click="store.resetScanner()" class="text-xs text-neutral-400 hover:text-white underline underline-offset-4 font-mono">
-                    Reiniciar alarma y reintentar
+                  <button @click="store.resetScanner()" class="text-xs text-neutral-400 hover:text-white underline underline-offset-4 font-sans cursor-pointer">
+                    Restablecer Consola
                   </button>
-                  <p class="text-[10px] text-neutral-500 font-mono">El lector se restablecerá automáticamente en 40s</p>
+                  <p class="text-[10px] text-neutral-500 font-mono">La consola se restablecerá automáticamente en 40s</p>
                 </div>
               </div>
 
@@ -198,42 +218,67 @@ onUnmounted(() => {
           </div>
 
           <div class="border-t border-neutral-900 pt-4 text-center text-[10px] text-neutral-600 font-mono">
-            Bucle de Simulación de Lector Biométrico Activo • Estatus: Correcto
+            Consola de Registro de Asistencia • Estado: Activo
           </div>
         </div>
 
         <!-- DERECHA: Controles del Simulador e Historial -->
         <div class="lg:col-span-4 space-y-6 flex flex-col">
           
-          <!-- Tarjeta de Controles del simulador -->
+          <!-- Tarjeta de Controles de Registro Manual -->
           <div class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
-            <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Simulador Biométrico</h3>
+            <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Asistencia Manual</h3>
             
             <div class="space-y-4 pt-1">
-              <!-- Selector de cualquier miembro -->
-              <div class="space-y-2">
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Simular cualquier usuario</label>
-                <select 
-                  v-model="selectedSimMemberId" 
-                  class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#EF9F27]"
-                >
-                  <option value="">-- Seleccionar miembro --</option>
-                  <option v-for="m in memberStore.members" :key="m.id" :value="m.id">
-                    {{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})
-                  </option>
-                </select>
+              <!-- Buscador de Miembros para Registro Manual -->
+              <div class="space-y-2 relative">
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Buscar Miembro (Nombre, Apellido, Folio)</label>
+                <div class="relative">
+                  <input 
+                    v-model="manualSearchQuery" 
+                    type="text" 
+                    placeholder="Escribe para buscar..." 
+                    @focus="showSearchResults = true"
+                    class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#EF9F27]"
+                  />
+                  <!-- Clear button -->
+                  <button 
+                    v-if="manualSearchQuery" 
+                    type="button" 
+                    @click="clearManualSearch" 
+                    class="absolute right-3 top-2.5 text-neutral-500 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <!-- Search Results Dropdown -->
+                <div v-if="showSearchResults && filteredMembers.length > 0" class="absolute z-20 w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl max-h-48 overflow-y-auto animate-in slide-in-from-top-1 duration-150">
+                  <div 
+                    v-for="m in filteredMembers" 
+                    :key="m.id" 
+                    @click="selectManualMember(m)" 
+                    class="px-3 py-2 text-xs hover:bg-neutral-800 cursor-pointer border-b border-neutral-800/50 last:border-0 flex justify-between items-center text-white"
+                  >
+                    <span>{{ m.firstName }} {{ m.lastName }}</span>
+                    <span class="text-[10px] text-neutral-500 font-mono">{{ m.memberNumber }}</span>
+                  </div>
+                </div>
               </div>
 
               <button 
                 @click="store.triggerSimulatedScan(selectedSimMemberId)"
                 :disabled="!selectedSimMemberId || store.isScanning"
-                class="w-full py-2.5 bg-[#EF9F27] hover:bg-[#d97706] disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer"
+                class="w-full py-2.5 bg-[#EF9F27] hover:bg-[#d97706] disabled:opacity-40 disabled:cursor-not-allowed text-black font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-1"
               >
-                {{ store.isScanning ? 'Escaneando...' : 'Escanear Huella del Miembro' }}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span>{{ store.isScanning ? 'Verificando...' : 'Registrar Entrada Manual' }}</span>
               </button>
 
               <div class="border-t border-neutral-900 pt-3 mt-1 space-y-2">
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Casos de prueba</label>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Simulador de Errores</label>
                 
                 <button 
                   @click="store.triggerSimulatedScan(undefined, 'denied_unknown')"
@@ -241,8 +286,8 @@ onUnmounted(() => {
                   class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group disabled:opacity-40 cursor-pointer"
                 >
                   <div>
-                    <p class="text-xs font-semibold text-white">Simular Huella Desconocida</p>
-                    <p class="text-[9px] text-neutral-500 font-mono">Sin correspondencia biométrica</p>
+                    <p class="text-xs font-semibold text-white">Simular Folio Desconocido</p>
+                    <p class="text-[9px] text-neutral-500 font-mono">El registro no existe en el sistema</p>
                   </div>
                   <span class="w-2.5 h-2.5 rounded-full bg-amber-500 group-hover:scale-125 transition-all"></span>
                 </button>

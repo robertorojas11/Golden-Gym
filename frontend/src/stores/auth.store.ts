@@ -8,6 +8,7 @@ export interface UserPayload {
   lastName: string;
   roleName: string;
   permissions: string[];
+  mustChangePassword?: boolean;
 }
 
 export const useAuthStore = defineStore('auth', () => {

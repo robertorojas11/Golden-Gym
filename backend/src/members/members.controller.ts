@@ -53,4 +53,22 @@ export class MembersController {
   addNote(@Param('id') id: string, @Body('note') note: string) {
     return this.service.addNote(id, note);
   }
+
+  @Get(':id/documents')
+  @RequirePermissions('manage:access')
+  findDocuments(@Param('id') id: string) {
+    return this.service.findDocuments(id);
+  }
+
+  @Post(':id/documents')
+  @RequirePermissions('manage:access')
+  addDocument(@Param('id') id: string, @Body() body: { summary: string; fileData: string; mimeType?: string }) {
+    return this.service.addDocument(id, body);
+  }
+
+  @Delete(':id/documents/:docId')
+  @RequirePermissions('manage:access')
+  deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
+    return this.service.deleteDocument(id, docId);
+  }
 }

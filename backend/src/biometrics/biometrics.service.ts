@@ -85,6 +85,7 @@ export class BiometricsService {
 
     if (!duplicateCheck) {
       this.db.accessLogs.unshift(newLog); // Añadir al inicio
+      await this.db.saveAccessLog(newLog);
     }
 
     return {

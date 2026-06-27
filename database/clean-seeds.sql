@@ -44,12 +44,10 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 ('4a6b8c0d-2e44-7766-bbdd-99ff00aa1104', 'd5d9c228-2d88-469b-98f9-4b476e336b9e');
 
 -- 4. Create Initial Staff Accounts
--- Default passwords: 'Password123'
--- IMPORTANT: Make sure to change these passwords after the first login in the system!
-INSERT INTO users (id, email, password_hash, first_name, last_name, role_id, is_active) VALUES
-('11111111-1111-1111-1111-111111111111', 'owner@goldengym.local', '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', 'Marcus', 'Gold', '1a3b5c7d-9e11-4433-88bb-66cc77dd8801', TRUE),
-('22222222-2222-2222-2222-222222222222', 'admin@goldengym.local', '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', 'Sarah', 'Connor', '2a4b6c8d-0e22-5544-99cc-77dd88ee9902', TRUE),
-('33333333-3333-3333-3333-333333333333', 'reception@goldengym.local', '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', 'Lucas', 'Vance', '3a5b7c9d-1e33-6655-aacc-88ee99ff0003', TRUE);
+-- Default password is encrypted using SHA-256 for: 'Golden#2026'
+-- SHA-256: 3a2d21ca5208479e0a022510b64d1f2e1fa074fa2cd1bd34fe7d26b5ad9508bc
+INSERT INTO users (id, email, password_hash, first_name, last_name, role_id, is_active, must_change_password) VALUES
+('11111111-1111-1111-1111-111111111111', 'goldencorpsgym@gmail.com', '3a2d21ca5208479e0a022510b64d1f2e1fa074fa2cd1bd34fe7d26b5ad9508bc', 'Adriana', 'Garfias', '1a3b5c7d-9e11-4433-88bb-66cc77dd8801', TRUE, TRUE);
 
 -- 5. Create Payment Methods
 INSERT INTO payment_methods (id, name, is_active) VALUES

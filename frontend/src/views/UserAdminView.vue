@@ -7,21 +7,24 @@ const authStore = useAuthStore();
 const syncStore = useSyncStore();
 const staff = ref<any[]>([]);
 
-const defaultStaff = [
-  { id: '1', firstName: 'Marcus', lastName: 'Gold', email: 'owner@goldengym.local', roleName: 'Propietario', isActive: true },
-  { id: '2', firstName: 'Sarah', lastName: 'Connor', email: 'admin@goldengym.local', roleName: 'Administrador', isActive: true },
-  { id: '3', firstName: 'Lucas', lastName: 'Vance', email: 'reception@goldengym.local', roleName: 'Recepcionista', isActive: true },
-];
-
 const API_URL = 'http://localhost:3000';
 
+function getHeaders() {
+  const token = localStorage.getItem('gg_auth_token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
 async function fetchStaff() {
-  const stored = localStorage.getItem('gg_staff');
-  if (stored) {
-    staff.value = JSON.parse(stored);
-  } else {
-    localStorage.setItem('gg_staff', JSON.stringify(defaultStaff));
-    staff.value = defaultStaff;
+  try {
+    const res = await fetch(`${API_URL}/auth/users`, { headers: getHeaders() });
+    if (res.ok) {
+      staff.value = await res.json();
+    }
+  } catch (e) {
+    console.error(e);
   }
 }
 
@@ -99,32 +102,55 @@ function closeAddEditModal() {
   showAddEditModal.value = false;
 }
 
-function saveStaff() {
-  if (isEditing.value && editingStaffId.value) {
-    const idx = staff.value.findIndex((s) => s.id === editingStaffId.value);
-    if (idx !== -1) {
-      staff.value[idx].firstName = staffForm.value.firstName;
-      staff.value[idx].lastName = staffForm.value.lastName;
-      staff.value[idx].email = staffForm.value.email;
-      staff.value[idx].roleName = staffForm.value.roleName;
+async function saveStaff() {
+  try {
+    if (isEditing.value && editingStaffId.value) {
+      const payload: any = {
+        firstName: staffForm.value.firstName,
+        lastName: staffForm.value.lastName,
+        email: staffForm.value.email,
+        roleName: staffForm.value.roleName,
+      };
+      if (resetPasswordCheckbox.value && staffForm.value.password) {
+        payload.password = staffForm.value.password;
+      }
+      const res = await fetch(`${API_URL}/auth/users/${editingStaffId.value}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        triggerToast('Información de personal actualizada correctamente.');
+        syncStore.registerModification('EDICION_PERSONAL', `Personal actualizado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
+      } else {
+        triggerToast('Error al actualizar el personal.');
+      }
+    } else {
+      const payload = {
+        firstName: staffForm.value.firstName,
+        lastName: staffForm.value.lastName,
+        email: staffForm.value.email,
+        roleName: staffForm.value.roleName,
+        password: staffForm.value.password,
+      };
+      const res = await fetch(`${API_URL}/auth/users`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        triggerToast('Personal registrado correctamente.');
+        syncStore.registerModification('CREACION_PERSONAL', `Personal creado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
+      } else {
+        triggerToast('Error al registrar el personal.');
+      }
     }
-    triggerToast('Información de personal actualizada correctamente.');
-    syncStore.registerModification('EDICION_PERSONAL', `Personal actualizado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
-  } else {
-    const newStaff = {
-      id: Date.now().toString(),
-      firstName: staffForm.value.firstName,
-      lastName: staffForm.value.lastName,
-      email: staffForm.value.email,
-      roleName: staffForm.value.roleName,
-      isActive: true,
-    };
-    staff.value.push(newStaff);
-    triggerToast('Nuevo personal registrado correctamente.');
-    syncStore.registerModification('CREACION_PERSONAL', `Personal registrado: ${staffForm.value.firstName} ${staffForm.value.lastName}`);
+    showAddEditModal.value = false;
+    await fetchStaff();
+  } catch (err) {
+    console.error(err);
+    triggerToast('Ocurrió un error inesperado.');
   }
-  localStorage.setItem('gg_staff', JSON.stringify(staff.value));
-  closeAddEditModal();
 }
 
 function openDeactivateModal(user: any) {
@@ -137,26 +163,46 @@ function closeDeactivateModal() {
   selectedStaff.value = null;
 }
 
-function confirmDeactivate() {
+async function confirmDeactivate() {
   if (!selectedStaff.value) return;
-  const idx = staff.value.findIndex((s) => s.id === selectedStaff.value.id);
-  if (idx !== -1) {
-    staff.value[idx].isActive = false;
+  try {
+    const res = await fetch(`${API_URL}/auth/users/${selectedStaff.value.id}/toggle`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ isActive: false }),
+    });
+    if (res.ok) {
+      triggerToast(`Personal ${selectedStaff.value.firstName} desactivado correctamente.`);
+      syncStore.registerModification('DESACTIVACION_PERSONAL', `Personal desactivado: ${selectedStaff.value.firstName} ${selectedStaff.value.lastName}`);
+      await fetchStaff();
+    } else {
+      triggerToast('Error al desactivar el personal.');
+    }
+  } catch (err) {
+    console.error(err);
+    triggerToast('Error inesperado.');
   }
-  localStorage.setItem('gg_staff', JSON.stringify(staff.value));
-  triggerToast(`Personal ${selectedStaff.value.firstName} desactivado correctamente.`);
-  syncStore.registerModification('DESACTIVACION_PERSONAL', `Personal desactivado: ${selectedStaff.value.firstName} ${selectedStaff.value.lastName}`);
   closeDeactivateModal();
 }
 
-function reactivateStaff(user: any) {
-  const idx = staff.value.findIndex((s) => s.id === user.id);
-  if (idx !== -1) {
-    staff.value[idx].isActive = true;
+async function reactivateStaff(user: any) {
+  try {
+    const res = await fetch(`${API_URL}/auth/users/${user.id}/toggle`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ isActive: true }),
+    });
+    if (res.ok) {
+      triggerToast(`Personal ${user.firstName} reactivado correctamente.`);
+      syncStore.registerModification('REACTIVACION_PERSONAL', `Personal reactivado: ${user.firstName} ${user.lastName}`);
+      await fetchStaff();
+    } else {
+      triggerToast('Error al reactivar el personal.');
+    }
+  } catch (err) {
+    console.error(err);
+    triggerToast('Error inesperado.');
   }
-  localStorage.setItem('gg_staff', JSON.stringify(staff.value));
-  triggerToast(`Personal ${user.firstName} reactivado correctamente.`);
-  syncStore.registerModification('REACTIVACION_PERSONAL', `Personal reactivado: ${user.firstName} ${user.lastName}`);
 }
 
 // Keyboard focus trap watch blocks
@@ -269,7 +315,7 @@ onUnmounted(() => {
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
 
               <!-- Action buttons: Render only if user is not Owner himself -->
-              <div v-if="user.email !== 'owner@goldengym.local' && authStore.userRole === 'owner'" class="flex items-center space-x-2 md:opacity-0 group-hover/row:opacity-100 transition-opacity">
+              <div v-if="user.email !== 'goldencorpsgym@gmail.com' && authStore.userRole === 'owner'" class="flex items-center space-x-2 md:opacity-0 group-hover/row:opacity-100 transition-opacity">
                 <button 
                   @click="openEditModal(user)"
                   class="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white transition-all"

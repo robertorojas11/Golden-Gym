@@ -9,6 +9,7 @@ export const useMemberStore = defineStore('member', () => {
   const plans = ref<any[]>([]);
   const activeMemberships = ref<any[]>([]);
   const activePayments = ref<any[]>([]);
+  const selectedMemberDocuments = ref<any[]>([]);
 
   const API_URL = 'http://localhost:3000';
 
@@ -61,6 +62,9 @@ export const useMemberStore = defineStore('member', () => {
       if (payRes.ok) {
         activePayments.value = await payRes.json();
       }
+      
+      // Fetch documents
+      await fetchMemberDocuments(id);
     } catch (e) {
       console.error(e);
     }
@@ -170,6 +174,24 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
+  async function createPlan(planData: any) {
+    try {
+      const res = await fetch(`${API_URL}/memberships/plans`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(planData),
+      });
+      if (res.ok) {
+        await fetchPlans();
+        syncStore.registerModification('CREACION_PLAN', `Plan creado: ${planData.name}`);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
   async function updatePlan(id: string, planData: any) {
     try {
       const res = await fetch(`${API_URL}/memberships/plans/${id}`, {
@@ -205,12 +227,59 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
+  async function fetchMemberDocuments(memberId: string) {
+    try {
+      const res = await fetch(`${API_URL}/members/${memberId}/documents`, { headers: getHeaders() });
+      if (res.ok) {
+        selectedMemberDocuments.value = await res.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function uploadMemberDocument(memberId: string, summary: string, fileData: string) {
+    try {
+      const res = await fetch(`${API_URL}/members/${memberId}/documents`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ summary, fileData }),
+      });
+      if (res.ok) {
+        await fetchMemberDocuments(memberId);
+        syncStore.registerModification('DOCUMENTO_SUBIDO', `Documento '${summary}' guardado.`);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  async function deleteMemberDocument(memberId: string, docId: string) {
+    try {
+      const res = await fetch(`${API_URL}/members/${memberId}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        await fetchMemberDocuments(memberId);
+        syncStore.registerModification('DOCUMENTO_ELIMINADO', `Documento eliminado.`);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
   return {
     members,
     selectedMember,
     plans,
     activeMemberships,
     activePayments,
+    selectedMemberDocuments,
     fetchMembers,
     fetchPlans,
     fetchMemberDetail,
@@ -219,7 +288,11 @@ export const useMemberStore = defineStore('member', () => {
     deactivateMember,
     assignMembership,
     registerPayment,
+    createPlan,
     updatePlan,
     updateMembership,
+    fetchMemberDocuments,
+    uploadMemberDocument,
+    deleteMemberDocument,
   };
 });

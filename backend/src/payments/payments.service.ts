@@ -34,14 +34,14 @@ export class PaymentsService {
       });
   }
 
-  registerPayment(paymentData: {
+  async registerPayment(paymentData: {
     memberId: string;
     membershipId: string;
     paymentMethodId: string;
     amount: number;
     referenceNumber?: string;
     processedBy: string;
-  }): Payment {
+  }): Promise<Payment> {
     // Check if membership exists
     const ms = this.db.memberships.find((m) => m.id === paymentData.membershipId);
     if (!ms) {
@@ -71,14 +71,16 @@ export class PaymentsService {
     newPayment.processedByName = user ? `${user.firstName} ${user.lastName}` : 'Desconocido';
 
     this.db.payments.push(newPayment);
+    await this.db.savePayment(newPayment);
 
     // Update membership status to ACTIVE
     ms.status = 'ACTIVE';
+    await this.db.saveMembership(ms);
 
     return newPayment;
   }
 
-  refundPayment(id: string): Payment {
+  async refundPayment(id: string): Promise<Payment> {
     const payment = this.db.payments.find((p) => p.id === id);
     if (!payment) {
       throw new NotFoundException('Payment record not found');
@@ -89,11 +91,13 @@ export class PaymentsService {
     }
 
     payment.status = 'REFUNDED';
+    await this.db.savePayment(payment);
 
     // Update related membership to CANCELLED
     const ms = this.db.memberships.find((m) => m.id === payment.membershipId);
     if (ms) {
       ms.status = 'CANCELLED';
+      await this.db.saveMembership(ms);
     }
 
     return payment;

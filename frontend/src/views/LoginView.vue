@@ -6,8 +6,8 @@ import { useAuthStore } from '../stores/auth.store';
 const router = useRouter();
 const authStore = useAuthStore();
 
-const email = ref('reception@goldengym.local');
-const password = ref('Password123');
+const email = ref('goldencorpsgym@gmail.com');
+const password = ref('Golden#2026');
 const errorMsg = ref('');
 const isLoading = ref(false);
 
@@ -29,7 +29,11 @@ async function handleLogin() {
 
     const data = await res.json();
     authStore.setAuth(data.access_token, data.user);
-    router.push('/');
+    if (data.user.mustChangePassword) {
+      router.push('/change-password');
+    } else {
+      router.push('/');
+    }
   } catch (error: any) {
     errorMsg.value = error.message || 'Error al iniciar sesión. Verifica que el servidor esté activo.';
   } finally {
@@ -48,7 +52,7 @@ async function handleLogin() {
     <!-- Overlay for extra contrast -->
     <div class="absolute inset-0 bg-black/50 z-0"></div>
 
-    <div class="max-w-md w-full bg-black/85 backdrop-blur-md rounded-2xl shadow-2xl border border-neutral-850 p-8 z-10">
+    <div class="max-w-md w-full bg-black/85 backdrop-blur-md rounded-2xl shadow-2xl border border-neutral-800 p-8 z-10">
       <div class="text-center mb-8">
         <!-- Gym Logo -->
         <img src="/Logo.png" alt="Golden Gym Logo" class="h-36 object-contain mx-auto mb-4" />
@@ -64,7 +68,7 @@ async function handleLogin() {
             type="email"
             required
             class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FA2F2A] transition-all"
-            placeholder="nombre@goldengym.local"
+            placeholder="correo@gimnasio.com"
           />
         </div>
 

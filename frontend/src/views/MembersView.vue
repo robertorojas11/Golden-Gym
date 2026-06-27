@@ -15,7 +15,203 @@ const isLoading = ref(false);
 const isDetailLoading = ref(false);
 
 const searchQuery = ref('');
-const activeTab = ref<'overview' | 'memberships' | 'payments' | 'activity'>('overview');
+const activeTab = ref<'overview' | 'memberships' | 'payments' | 'activity' | 'documents'>('overview');
+
+// Document upload states
+const documentSummary = ref('');
+const selectedPdfFile = ref<File | null>(null);
+const docErrorMsg = ref('');
+const isUploadingDoc = ref(false);
+
+function onPdfFileChange(e: any) {
+  const file = e.target.files[0];
+  docErrorMsg.value = '';
+  if (file) {
+    if (file.type !== 'application/pdf') {
+      docErrorMsg.value = 'Solo se admiten archivos PDF.';
+      selectedPdfFile.value = null;
+      return;
+    }
+    selectedPdfFile.value = file;
+  }
+}
+
+async function handleUploadDocument() {
+  if (!selectedPdfFile.value || !documentSummary.value.trim() || !memberStore.selectedMember) return;
+  isUploadingDoc.value = true;
+  docErrorMsg.value = '';
+  
+  try {
+    const reader = new FileReader();
+    reader.onload = async (event: any) => {
+      const base64Data = event.target.result;
+      const success = await memberStore.uploadMemberDocument(
+        memberStore.selectedMember.id, 
+        documentSummary.value, 
+        base64Data
+      );
+      if (success) {
+        documentSummary.value = '';
+        selectedPdfFile.value = null;
+        triggerToast('Documento guardado con éxito.');
+      } else {
+        docErrorMsg.value = 'Error al subir el documento.';
+      }
+      isUploadingDoc.value = false;
+    };
+    reader.readAsDataURL(selectedPdfFile.value);
+  } catch (err: any) {
+    console.error(err);
+    docErrorMsg.value = 'Ocurrió un error inesperado.';
+    isUploadingDoc.value = false;
+  }
+}
+
+async function handleDeleteDocument(docId: string) {
+  if (!memberStore.selectedMember) return;
+  if (confirm('¿Estás seguro de que deseas eliminar este documento?')) {
+    const success = await memberStore.deleteMemberDocument(memberStore.selectedMember.id, docId);
+    if (success) {
+      triggerToast('Documento eliminado con éxito.');
+    } else {
+      triggerToast('Error al eliminar el documento.');
+    }
+  }
+}
+
+function downloadDocument(doc: any) {
+  const linkSource = doc.fileData;
+  const downloadLink = document.createElement("a");
+  const fileName = `${doc.summary}.pdf`;
+  downloadLink.href = linkSource;
+  downloadLink.download = fileName;
+  downloadLink.click();
+}
+
+// Member Registration Modal States
+const showAddMemberModal = ref(false);
+const fileInputRef = ref<any>(null);
+const videoRef = ref<any>(null);
+const cameraActive = ref(false);
+const capturedPhoto = ref<string | null>(null);
+let mediaStream: MediaStream | null = null;
+
+const memberForm = ref({
+  firstName: '',
+  lastName: '',
+  gender: 'Masculino',
+  birthDate: '',
+  email: '',
+  phone: '',
+  street: '',
+  number: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelationship: '',
+  notes: '',
+  photoUrl: '',
+});
+
+function triggerFileSelect() {
+  if (fileInputRef.value) {
+    fileInputRef.value.click();
+  }
+}
+
+function onFileChange(event: any) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      memberForm.value.photoUrl = e.target.result;
+      capturedPhoto.value = null;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+async function startCamera() {
+  try {
+    cameraActive.value = true;
+    capturedPhoto.value = null;
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    if (videoRef.value) {
+      videoRef.value.srcObject = mediaStream;
+    }
+  } catch (err) {
+    console.error('Error accessing camera', err);
+    alert('No se pudo acceder a la cámara');
+    cameraActive.value = false;
+  }
+}
+
+function stopCamera() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((track) => track.stop());
+  }
+  cameraActive.value = false;
+}
+
+function captureSnapshot() {
+  if (videoRef.value) {
+    const video = videoRef.value;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      capturedPhoto.value = dataUrl;
+      memberForm.value.photoUrl = dataUrl;
+    }
+    stopCamera();
+  }
+}
+
+watch(showAddMemberModal, (newVal) => {
+  if (!newVal) {
+    stopCamera();
+  }
+});
+
+async function saveNewMember() {
+  const payload = {
+    ...memberForm.value,
+    notes: memberForm.value.notes ? [memberForm.value.notes] : [],
+  };
+
+  const created = await memberStore.createMember(payload);
+  if (created) {
+    showAddMemberModal.value = false;
+    memberForm.value = {
+      firstName: '',
+      lastName: '',
+      gender: 'Masculino',
+      birthDate: '',
+      email: '',
+      phone: '',
+      street: '',
+      number: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      emergencyContactRelationship: '',
+      notes: '',
+      photoUrl: '',
+    };
+    capturedPhoto.value = null;
+    triggerToast('Miembro registrado correctamente');
+    await memberStore.fetchMembers();
+  } else {
+    triggerToast('Error al registrar miembro');
+  }
+}
 
 const filterPlan = ref('ALL');
 const filterStatus = ref('ALL');
@@ -427,9 +623,18 @@ const formattedNotes = computed(() => {
     <!-- Título de Sección -->
     <div class="flex justify-between items-center pb-4 border-b border-gray-900/60">
       <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-white">Directorio de Miembros</h2>
-        <p class="text-xs text-neutral-400 mt-1">Expedientes, estados de membresía y registros de entrada</p>
+        <h2 class="text-3xl font-extrabold tracking-tight text-white font-sans">Directorio de Miembros</h2>
+        <p class="text-xs text-neutral-400 mt-1 font-sans">Expedientes, estados de membresía y registros de entrada</p>
       </div>
+      <button 
+        @click="showAddMemberModal = true"
+        class="bg-[#FA2F2A] hover:bg-[#d6201b] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all flex items-center space-x-1.5 font-sans cursor-pointer"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+        </svg>
+        <span>Nuevo Miembro</span>
+      </button>
     </div>
 
     <!-- Layout de 12 Columnas -->
@@ -672,6 +877,13 @@ const formattedNotes = computed(() => {
               :class="activeTab === 'activity' ? 'bg-[#121212] text-white border border-gray-850 shadow-inner' : 'hover:text-white hover:bg-[#121212]/30'"
             >
               Registro de Accesos
+            </button>
+            <button 
+              @click="activeTab = 'documents'"
+              class="flex-1 py-2 rounded-lg text-center transition-all cursor-pointer text-[10px] uppercase tracking-wider font-mono"
+              :class="activeTab === 'documents' ? 'bg-[#121212] text-white border border-gray-850 shadow-inner' : 'hover:text-white hover:bg-[#121212]/30'"
+            >
+              Documentos
             </button>
           </div>
 
@@ -1116,6 +1328,109 @@ const formattedNotes = computed(() => {
             </div>
           </div>
 
+          <!-- PESTAÑA 5: ARCHIVOS / DOCUMENTOS -->
+          <div v-if="activeTab === 'documents'" class="saas-card p-6 space-y-6 animate-in fade-in duration-150">
+            <div class="flex justify-between items-center border-b border-gray-900 pb-3">
+              <h4 class="saas-title">Expediente de Documentos</h4>
+              <span class="text-[10px] text-neutral-500 font-mono">PDF ÚNICAMENTE</span>
+            </div>
+
+            <!-- Upload document Form -->
+            <form @submit.prevent="handleUploadDocument" class="bg-[#0A0A0A] p-4 rounded-xl border border-gray-900 space-y-4">
+              <h5 class="text-xs font-bold text-white uppercase tracking-wider">Subir nuevo documento</h5>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider font-mono mb-2">Resumen / Nombre del Documento</label>
+                  <input 
+                    v-model="documentSummary" 
+                    type="text" 
+                    required 
+                    placeholder="Ej. Contrato, Certificado Médico" 
+                    class="w-full bg-[#121212] border border-gray-850 text-white rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#F59E0B]"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider font-mono mb-2">Archivo PDF</label>
+                  <input 
+                    type="file" 
+                    accept="application/pdf" 
+                    required 
+                    @change="onPdfFileChange"
+                    class="w-full text-xs text-neutral-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-900 file:text-white hover:file:bg-neutral-850 cursor-pointer"
+                  />
+                </div>
+              </div>
+              
+              <div v-if="docErrorMsg" class="text-xs text-[#FA2F2A] font-semibold">
+                {{ docErrorMsg }}
+              </div>
+
+              <div class="flex justify-end pt-2">
+                <button 
+                  type="submit" 
+                  :disabled="isUploadingDoc || !selectedPdfFile || !documentSummary.trim()"
+                  class="px-4 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-neutral-200 transition-all disabled:opacity-30 flex items-center space-x-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>{{ isUploadingDoc ? 'Subiendo...' : 'Guardar Documento' }}</span>
+                </button>
+              </div>
+            </form>
+
+            <!-- Documents list -->
+            <div class="space-y-3">
+              <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Documentos Guardados</h5>
+              <div class="grid grid-cols-1 gap-2.5">
+                <div 
+                  v-for="doc in memberStore.selectedMemberDocuments" 
+                  :key="doc.id" 
+                  class="p-4 bg-[#0A0A0A] border border-gray-900 rounded-xl flex items-center justify-between hover:border-gray-800 transition-all group"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="p-2.5 bg-red-950/20 text-[#FA2F2A] border border-red-900/30 rounded-lg">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h6 class="text-xs font-bold text-white uppercase">{{ doc.summary }}</h6>
+                      <p class="text-[9px] text-neutral-500 font-mono mt-0.5">Subido el: {{ new Date(doc.uploadedAt).toLocaleString() }}</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center space-x-2">
+                    <button 
+                      @click="downloadDocument(doc)"
+                      class="p-2 bg-neutral-900 hover:bg-neutral-800 rounded-lg text-neutral-350 hover:text-white transition-all text-[10px] font-bold uppercase tracking-wider font-mono flex items-center space-x-1"
+                      title="Descargar PDF"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      <span class="hidden sm:inline">Descargar</span>
+                    </button>
+                    
+                    <button 
+                      @click="handleDeleteDocument(doc.id)"
+                      class="p-2 bg-neutral-900 hover:bg-red-950/40 border border-transparent hover:border-red-900/40 rounded-lg text-neutral-450 hover:text-[#FA2F2A] transition-all"
+                      title="Eliminar"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div v-if="memberStore.selectedMemberDocuments.length === 0" class="p-8 text-center text-neutral-500 italic font-sans border border-dashed border-gray-900 rounded-xl">
+                  No se han registrado documentos en el expediente de este miembro.
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Sin miembro seleccionado (Vacío) -->
@@ -1371,6 +1686,143 @@ const formattedNotes = computed(() => {
             {{ isDeactivating ? 'Suspendiendo...' : 'Sí, Suspender' }}
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- MODAL: REGISTRAR NUEVO MIEMBRO -->
+    <div v-if="showAddMemberModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-neutral-950 text-white rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 relative border border-neutral-900 font-sans border-t-4 border-t-[#FA2F2A]">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-sm font-bold uppercase tracking-widest text-[#FA2F2A]">Registrar Nuevo Miembro</h3>
+          <button @click="showAddMemberModal = false" class="text-neutral-400 hover:text-white cursor-pointer text-base">
+            ✕
+          </button>
+        </div>
+        
+        <form @submit.prevent="saveNewMember" class="space-y-6 text-xs">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Nombre</label>
+              <input v-model="memberForm.firstName" type="text" required class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Apellidos</label>
+              <input v-model="memberForm.lastName" type="text" required class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Género</label>
+              <select v-model="memberForm.gender" class="w-full saas-input text-sm bg-neutral-900 text-white border-neutral-800 focus:border-[#F59E0B] focus:ring-0">
+                <option>Masculino</option>
+                <option>Femenino</option>
+                <option>Otro</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Fecha de Nacimiento</label>
+              <input v-model="memberForm.birthDate" type="date" required class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Correo Electrónico</label>
+              <input v-model="memberForm.email" type="email" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Número de Teléfono</label>
+              <input v-model="memberForm.phone" type="tel" required class="w-full saas-input text-sm" />
+            </div>
+          </div>
+
+          <hr class="border-gray-900/60" />
+
+          <h4 class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest font-mono">Dirección de Contacto</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Calle</label>
+              <input v-model="memberForm.street" type="text" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Número</label>
+              <input v-model="memberForm.number" type="text" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Ciudad</label>
+              <input v-model="memberForm.city" type="text" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Estado</label>
+              <input v-model="memberForm.state" type="text" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Código Postal</label>
+              <input v-model="memberForm.postalCode" type="text" class="w-full saas-input text-sm" />
+            </div>
+          </div>
+
+          <hr class="border-gray-900/60" />
+
+          <h4 class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest font-mono">Contacto de Emergencia</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Nombre del Contacto</label>
+              <input v-model="memberForm.emergencyContactName" type="text" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Teléfono de Contacto</label>
+              <input v-model="memberForm.emergencyContactPhone" type="tel" class="w-full saas-input text-sm" />
+            </div>
+            <div>
+              <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Parentesco / Relación</label>
+              <input v-model="memberForm.emergencyContactRelationship" type="text" class="w-full saas-input text-sm" />
+            </div>
+          </div>
+
+          <hr class="border-gray-900/60" />
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Observaciones</label>
+            <textarea v-model="memberForm.notes" rows="2" class="w-full saas-input text-sm resize-none" placeholder="Detalles de salud, preferencias de entrenamiento, etc."></textarea>
+          </div>
+
+          <hr class="border-gray-900/60" />
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Foto de Perfil</label>
+            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+              <div class="w-32 h-32 border border-neutral-900 rounded-xl bg-neutral-950 flex items-center justify-center overflow-hidden relative">
+                <video v-if="cameraActive && !capturedPhoto" ref="videoRef" autoplay playsinline class="w-full h-full object-cover"></video>
+                <img v-else-if="capturedPhoto || memberForm.photoUrl" :src="capturedPhoto || memberForm.photoUrl" class="w-full h-full object-cover" />
+                <div v-else class="text-neutral-500 text-[10px] text-center p-2 font-mono">SIN FOTO</div>
+              </div>
+              
+              <div class="flex flex-col space-y-2">
+                <input type="file" ref="fileInputRef" accept="image/*" class="hidden" @change="onFileChange" />
+                
+                <button type="button" @click="triggerFileSelect" class="px-3 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer border border-gray-800/60">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>Subir Archivo</span>
+                </button>
+
+                <button v-if="!cameraActive" type="button" @click="startCamera" class="px-3 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer border border-gray-800/60">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 11-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Usar Cámara</span>
+                </button>
+                <div v-else class="flex space-x-2">
+                  <button type="button" @click="captureSnapshot" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md">Tomar Foto</button>
+                  <button type="button" @click="stopCamera" class="px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 rounded-xl text-xs font-bold cursor-pointer transition-all border border-gray-850">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end space-x-3 pt-4 border-t border-gray-900/60">
+            <button @click="showAddMemberModal = false" type="button" class="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 rounded-xl text-xs font-bold cursor-pointer transition-all border border-gray-800/60">Cancelar</button>
+            <button type="submit" class="px-5 py-2.5 bg-[#FA2F2A] hover:bg-[#d6201b] text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">Guardar Perfil</button>
+          </div>
+        </form>
       </div>
     </div>
 

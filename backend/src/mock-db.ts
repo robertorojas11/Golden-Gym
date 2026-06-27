@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Pool } from 'pg';
+import { createHash } from 'crypto';
 
 export interface User {
   id: string;
@@ -10,6 +12,7 @@ export interface User {
   roleName: string;
   permissions: string[];
   isActive: boolean;
+  mustChangePassword?: boolean;
 }
 
 export interface Member {
@@ -85,460 +88,346 @@ export interface AccessLog {
   scannedAt: string;
 }
 
-@Injectable()
-export class MockDatabase {
-  public users: User[] = [
-    {
-      id: '11111111-1111-1111-1111-111111111111',
-      email: 'owner@goldengym.local',
-      passwordHash: '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', // Password123
-      firstName: 'Marcus',
-      lastName: 'Gold',
-      roleId: '1a3b5c7d-9e11-4433-88bb-66cc77dd8801',
-      roleName: 'owner',
-      permissions: ['create:users', 'manage:memberships', 'manage:payments', 'manage:access', 'view:reports', 'system:config'],
-      isActive: true,
-    },
-    {
-      id: '22222222-2222-2222-2222-222222222222',
-      email: 'admin@goldengym.local',
-      passwordHash: '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', // Password123
-      firstName: 'Sarah',
-      lastName: 'Connor',
-      roleId: '2a4b6c8d-0e22-5544-99cc-77dd88ee9902',
-      roleName: 'administrator',
-      permissions: ['manage:memberships', 'manage:payments', 'manage:access', 'view:reports'],
-      isActive: true,
-    },
-    {
-      id: '33333333-3333-3333-3333-333333333333',
-      email: 'reception@goldengym.local',
-      passwordHash: '$2b$10$wO8oK029e2yF.J4rN0Uaie31.h4x56PecH7P9C7j9eLgQhBfVj6xK', // Password123
-      firstName: 'Lucas',
-      lastName: 'Vance',
-      roleId: '3a5b7c9d-1e33-6655-aacc-88ee99ff0003',
-      roleName: 'receptionist',
-      permissions: ['manage:payments', 'manage:access'],
-      isActive: true,
-    },
-  ];
-
-  public members: Member[] = [
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001',
-      memberNumber: 'MEM-1001',
-      firstName: 'Roberto',
-      lastName: 'Mendes',
-      gender: 'Masculino',
-      birthDate: '1988-04-12',
-      email: 'roberto.m@gmail.local',
-      phone: '555-0199',
-      street: 'Av. Insurgentes',
-      number: '120',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '06700',
-      emergencyContactName: 'Maria Mendes',
-      emergencyContactPhone: '555-0188',
-      emergencyContactRelationship: 'Esposa',
-      registrationDate: '2026-01-05',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: ['Prefiere entrenar por la mañana. Sensibilidad leve en la rodilla.'],
-      createdBy: '33333333-3333-3333-3333-333333333333',
-      createdByName: 'Lucas Vance',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002',
-      memberNumber: 'MEM-1002',
-      firstName: 'Carla',
-      lastName: 'Sánchez',
-      gender: 'Femenino',
-      birthDate: '1995-10-23',
-      email: 'carla.s@yahoo.local',
-      phone: '555-0144',
-      street: 'Paseo de la Reforma',
-      number: '45B',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '06500',
-      emergencyContactName: 'Juan Sánchez',
-      emergencyContactPhone: '555-0145',
-      emergencyContactRelationship: 'Padre',
-      registrationDate: '2026-02-12',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: ['Inscrita en clases de spinning desde esta semana.'],
-      createdBy: '22222222-2222-2222-2222-222222222222',
-      createdByName: 'Sarah Connor',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003',
-      memberNumber: 'MEM-1003',
-      firstName: 'Juan',
-      lastName: 'Pérez',
-      gender: 'Masculino',
-      birthDate: '1990-01-01',
-      email: 'juan.perez@email.local',
-      phone: '555-0100',
-      street: 'Av. Juárez',
-      number: '789',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '06000',
-      emergencyContactName: 'Juana Pérez',
-      emergencyContactPhone: '555-0101',
-      emergencyContactRelationship: 'Hermana',
-      registrationDate: '2026-05-15',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: [],
-      createdBy: '33333333-3333-3333-3333-333333333333',
-      createdByName: 'Lucas Vance',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0004',
-      memberNumber: 'MEM-1004',
-      firstName: 'David',
-      lastName: 'Alaba',
-      gender: 'Masculino',
-      birthDate: '1992-06-24',
-      email: 'david.a@gmail.local',
-      phone: '555-0155',
-      street: 'Av. Patriotismo',
-      number: '450',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '03700',
-      emergencyContactName: 'Sandra Alaba',
-      emergencyContactPhone: '555-0156',
-      emergencyContactRelationship: 'Hermana',
-      registrationDate: '2026-06-09',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: [],
-      createdBy: '33333333-3333-3333-3333-333333333333',
-      createdByName: 'Lucas Vance',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0005',
-      memberNumber: 'MEM-1005',
-      firstName: 'Sofía',
-      lastName: 'Vergara',
-      gender: 'Femenino',
-      birthDate: '1972-07-10',
-      email: 'sofia.v@gmail.local',
-      phone: '555-0166',
-      street: 'Campos Elíseos',
-      number: '23',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '11560',
-      emergencyContactName: 'Manolo Vergara',
-      emergencyContactPhone: '555-0167',
-      emergencyContactRelationship: 'Hijo',
-      registrationDate: '2026-06-08',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: ['Entrenamiento de alta intensidad solicitado.'],
-      createdBy: '33333333-3333-3333-3333-333333333333',
-      createdByName: 'Lucas Vance',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0006',
-      memberNumber: 'MEM-1006',
-      firstName: 'Carlos',
-      lastName: 'Slim',
-      gender: 'Masculino',
-      birthDate: '1940-01-28',
-      email: 'carlos.slim@telmex.local',
-      phone: '555-0177',
-      street: 'Paseo de las Palmas',
-      number: '800',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '11000',
-      emergencyContactName: 'Carlos Slim Domit',
-      emergencyContactPhone: '555-0178',
-      emergencyContactRelationship: 'Hijo',
-      registrationDate: '2026-05-20',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: ['Clases de natación o ejercicios cardiovasculares de bajo impacto.'],
-      createdBy: '22222222-2222-2222-2222-222222222222',
-      createdByName: 'Sarah Connor',
-    },
-    {
-      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0007',
-      memberNumber: 'MEM-1007',
-      firstName: 'Diana',
-      lastName: 'Prince',
-      gender: 'Femenino',
-      birthDate: '1984-05-18',
-      email: 'diana.prince@museum.local',
-      phone: '555-0188',
-      street: 'Av. Horacio',
-      number: '1420',
-      city: 'Ciudad de México',
-      state: 'CDMX',
-      postalCode: '11510',
-      emergencyContactName: 'Steve Trevor',
-      emergencyContactPhone: '555-0189',
-      emergencyContactRelationship: 'Amigo',
-      registrationDate: '2026-04-10',
-      isActive: true,
-      photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-      notes: ['Fuerza y acondicionamiento avanzado.'],
-      createdBy: '11111111-1111-1111-1111-111111111111',
-      createdByName: 'Marcus Gold',
-    },
-  ];
-
-  public plans: MembershipPlan[] = [
-    {
-      id: 'a0000000-0000-0000-0000-000000000001',
-      name: 'Pase Diario',
-      price: 4000,
-      durationDays: 1,
-      description: 'Acceso completo por 24 horas a áreas de pesas y cardio',
-      isActive: true,
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000002',
-      name: 'Pase Semanal',
-      price: 10000,
-      durationDays: 7,
-      description: 'Acceso completo por 7 días hábiles consecutivos',
-      isActive: true,
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000003',
-      name: 'Mensual Estándar',
-      price: 35000,
-      durationDays: 30,
-      description: 'Acceso completo, lockers y clases incluidas',
-      isActive: true,
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000004',
-      name: 'Trimestral Estándar',
-      price: 95000,
-      durationDays: 90,
-      description: '3 meses de acceso completo, incluye acceso a clases y uso de lockers',
-      isActive: true,
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000005',
-      name: 'Semestral Estandar',
-      price: 200000,
-      durationDays: 180,
-      description: '6 meses de acceso completo, incluye acceso a clases y uso de lockers',
-      isActive: true,
-    },
-    {
-      id: 'a0000000-0000-0000-0000-000000000006',
-      name: 'Anual Estandar',
-      price: 400000,
-      durationDays: 365,
-      description: '12 meses de acceso completo, incluye acceso a clases y uso de lockers',
-      isActive: true,
-    },
-  ];
-
-  public memberships: Membership[] = [
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0001',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001',
-      planId: 'a0000000-0000-0000-0000-000000000003',
-      planName: 'Mensual Estándar',
-      startDate: '2026-06-01',
-      endDate: '2026-07-01',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0002',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002',
-      planId: 'a0000000-0000-0000-0000-000000000006',
-      planName: 'Anual Estandar',
-      startDate: '2026-02-12',
-      endDate: '2027-02-12',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0003',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003',
-      planId: 'a0000000-0000-0000-0000-000000000001',
-      planName: 'Pase Diario',
-      startDate: '2026-05-15',
-      endDate: '2026-05-16',
-      status: 'EXPIRED',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0004',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0004',
-      planId: 'a0000000-0000-0000-0000-000000000001',
-      planName: 'Pase Diario',
-      startDate: '2026-06-10',
-      endDate: '2026-06-11',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0005',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0005',
-      planId: 'a0000000-0000-0000-0000-000000000002',
-      planName: 'Pase Semanal',
-      startDate: '2026-06-08',
-      endDate: '2026-06-15',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0006',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0006',
-      planId: 'a0000000-0000-0000-0000-000000000004',
-      planName: 'Trimestral Estándar',
-      startDate: '2026-05-20',
-      endDate: '2026-08-20',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'cccccccc-cccc-cccc-cccc-cccccccc0007',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0007',
-      planId: 'a0000000-0000-0000-0000-000000000005',
-      planName: 'Semestral Estandar',
-      startDate: '2026-04-10',
-      endDate: '2026-10-10',
-      status: 'ACTIVE',
-    },
-  ];
-
-  public payments: Payment[] = [
-    {
-      id: 'd0000000-0000-0000-0000-000000000001',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0001',
-      paymentMethodId: '90000000-0000-0000-0000-000000000003',
-      paymentMethodName: 'Tarjeta de Crédito',
-      amount: 35000,
-      referenceNumber: 'REF-8827419',
-      paymentDate: '2026-06-01T09:15:00Z',
-      status: 'PAID',
-      processedBy: '33333333-3333-3333-3333-333333333333',
-      processedByName: 'Lucas Vance',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000002',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0002',
-      paymentMethodId: '90000000-0000-0000-0000-000000000004',
-      paymentMethodName: 'Transferencia',
-      amount: 400000,
-      referenceNumber: 'REF-9912837',
-      paymentDate: '2026-02-12T14:30:00Z',
-      status: 'PAID',
-      processedBy: '22222222-2222-2222-2222-222222222222',
-      processedByName: 'Sarah Connor',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000003',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0003',
-      paymentMethodId: '90000000-0000-0000-0000-000000000001',
-      paymentMethodName: 'Efectivo',
-      amount: 4000,
-      referenceNumber: 'REF-1234567',
-      paymentDate: '2026-05-15T08:00:00Z',
-      status: 'PAID',
-      processedBy: '33333333-3333-3333-3333-333333333333',
-      processedByName: 'Lucas Vance',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000004',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0004',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0004',
-      paymentMethodId: '90000000-0000-0000-0000-000000000001',
-      paymentMethodName: 'Efectivo',
-      amount: 4000,
-      referenceNumber: 'REF-0000104',
-      paymentDate: '2026-06-10T08:00:00Z',
-      status: 'PAID',
-      processedBy: '33333333-3333-3333-3333-333333333333',
-      processedByName: 'Lucas Vance',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000005',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0005',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0005',
-      paymentMethodId: '90000000-0000-0000-0000-000000000002',
-      paymentMethodName: 'Tarjeta de Débito',
-      amount: 10000,
-      referenceNumber: 'REF-0000105',
-      paymentDate: '2026-06-08T10:15:00Z',
-      status: 'PAID',
-      processedBy: '33333333-3333-3333-3333-333333333333',
-      processedByName: 'Lucas Vance',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000006',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0006',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0006',
-      paymentMethodId: '90000000-0000-0000-0000-000000000004',
-      paymentMethodName: 'Transferencia',
-      amount: 95000,
-      referenceNumber: 'REF-0000106',
-      paymentDate: '2026-05-20T11:00:00Z',
-      status: 'PAID',
-      processedBy: '22222222-2222-2222-2222-222222222222',
-      processedByName: 'Sarah Connor',
-    },
-    {
-      id: 'd0000000-0000-0000-0000-000000000007',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0007',
-      membershipId: 'cccccccc-cccc-cccc-cccc-cccccccc0007',
-      paymentMethodId: '90000000-0000-0000-0000-000000000003',
-      paymentMethodName: 'Tarjeta de Crédito',
-      amount: 200000,
-      referenceNumber: 'REF-0000107',
-      paymentDate: '2026-04-10T09:00:00Z',
-      status: 'PAID',
-      processedBy: '11111111-1111-1111-1111-111111111111',
-      processedByName: 'Marcus Gold',
-    },
-  ];
-
-  public accessLogs: AccessLog[] = [
-    {
-      id: 'e0000000-0000-0000-0000-000000000001',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0001',
-      memberName: 'Roberto Mendes',
-      memberNumber: 'MEM-1001',
-      photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&h=256&q=80',
-      membershipType: 'Mensual Estándar',
-      membershipEndDate: '2026-07-01',
-      accessGranted: true,
-      scannedAt: '2026-06-08T08:30:00Z',
-    },
-    {
-      id: 'e0000000-0000-0000-0000-000000000002',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0002',
-      memberName: 'Carla Sánchez',
-      memberNumber: 'MEM-1002',
-      photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&h=256&q=80',
-      membershipType: 'Anual Oro VIP',
-      membershipEndDate: '2027-02-12',
-      accessGranted: true,
-      scannedAt: '2026-06-08T17:45:00Z',
-    },
-    {
-      id: 'e0000000-0000-0000-0000-000000000003',
-      memberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbb0003',
-      memberName: 'Juan Pérez',
-      memberNumber: 'MEM-1003',
-      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&h=256&q=80',
-      membershipType: 'Pase Diario',
-      membershipEndDate: '2026-05-16',
-      accessGranted: false,
-      failureReason: 'EXPIRED_MEMBERSHIP',
-      scannedAt: '2026-06-08T18:00:00Z',
-    },
-  ];
+export interface MemberDocument {
+  id: string;
+  memberId: string;
+  summary: string;
+  fileData: string; // Base64 encoded PDF
+  mimeType: string;
+  uploadedAt: string;
 }
+
+@Injectable()
+export class MockDatabase implements OnModuleInit {
+  private pool: Pool;
+
+  constructor() {
+    this.pool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      user: process.env.DB_USER || 'gym_admin',
+      password: process.env.DB_PASSWORD || 'gym_password_secure_local_188',
+      database: process.env.DB_NAME || 'goldengym_access',
+    });
+  }
+
+  public users: User[] = [];
+  public members: Member[] = [];
+  public plans: MembershipPlan[] = [];
+  public memberships: Membership[] = [];
+  public payments: Payment[] = [];
+  public accessLogs: AccessLog[] = [];
+  public documents: MemberDocument[] = [];
+
+  async onModuleInit() {
+    console.log('Initializing connection to PostgreSQL...');
+    try {
+      await this.pool.query('SELECT 1');
+      console.log('PostgreSQL connection established successfully.');
+      await this.loadAllFromDatabase();
+    } catch (err) {
+      console.error('Failed to initialize PostgreSQL database connection. Loading hardcoded mock values.', err);
+      this.loadMockBackup();
+    }
+  }
+
+  async loadAllFromDatabase() {
+    // 1. Load users
+    const usersRes = await this.pool.query('SELECT * FROM users');
+    const rolesRes = await this.pool.query('SELECT * FROM roles');
+    const rolePermissionsRes = await this.pool.query(`
+      SELECT rp.role_id, p.name as permission_name 
+      FROM role_permissions rp
+      JOIN permissions p ON rp.permission_id = p.id
+    `);
+    
+    this.users = usersRes.rows.map(row => {
+      const role = rolesRes.rows.find(r => r.id === row.role_id);
+      const perms = rolePermissionsRes.rows
+        .filter(rp => rp.role_id === row.role_id)
+        .map(rp => rp.permission_name);
+      return {
+        id: row.id,
+        email: row.email,
+        passwordHash: row.password_hash,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        roleId: row.role_id,
+        roleName: role ? role.name : 'viewer',
+        permissions: perms,
+        isActive: row.is_active,
+        mustChangePassword: row.must_change_password,
+      };
+    });
+
+    // 2. Load membership plans
+    const plansRes = await this.pool.query('SELECT * FROM membership_plans');
+    this.plans = plansRes.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      price: row.price,
+      durationDays: row.duration_days,
+      description: row.description,
+      isActive: row.is_active,
+    }));
+
+    // 3. Load members
+    const membersRes = await this.pool.query('SELECT * FROM members WHERE deleted_at IS NULL');
+    const photosRes = await this.pool.query('SELECT * FROM member_photos WHERE is_primary = TRUE AND deleted_at IS NULL');
+    const notesRes = await this.pool.query('SELECT * FROM member_notes WHERE deleted_at IS NULL');
+    
+    this.members = membersRes.rows.map(row => {
+      const photo = photosRes.rows.find(p => p.member_id === row.id);
+      const mNotes = notesRes.rows.filter(n => n.member_id === row.id).map(n => n.note);
+      const user = this.users.find(u => u.id === row.created_by);
+      return {
+        id: row.id,
+        memberNumber: row.member_number,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        gender: row.gender,
+        birthDate: row.birth_date ? row.birth_date.toISOString().split('T')[0] : '',
+        email: row.email,
+        phone: row.phone,
+        street: row.street,
+        number: row.number,
+        city: row.city,
+        state: row.state,
+        postalCode: row.postal_code,
+        emergencyContactName: row.emergency_contact_name,
+        emergencyContactPhone: row.emergency_contact_phone,
+        emergencyContactRelationship: row.emergency_contact_relationship,
+        registrationDate: row.registration_date ? row.registration_date.toISOString().split('T')[0] : '',
+        isActive: row.is_active,
+        photoUrl: photo ? photo.photo_url : '',
+        notes: mNotes,
+        createdBy: row.created_by,
+        createdByName: user ? `${user.firstName} ${user.lastName}` : 'Personal',
+      };
+    });
+
+    // 4. Load memberships
+    const membershipsRes = await this.pool.query('SELECT * FROM memberships WHERE deleted_at IS NULL');
+    this.memberships = membershipsRes.rows.map(row => {
+      const plan = this.plans.find(p => p.id === row.plan_id);
+      return {
+        id: row.id,
+        memberId: row.member_id,
+        planId: row.plan_id,
+        planName: plan ? plan.name : 'Membresía',
+        startDate: row.start_date ? row.start_date.toISOString().split('T')[0] : '',
+        endDate: row.end_date ? row.end_date.toISOString().split('T')[0] : '',
+        status: row.status,
+      };
+    });
+
+    // 5. Load payments
+    const paymentsRes = await this.pool.query('SELECT * FROM payments WHERE deleted_at IS NULL');
+    const paymentMethodsRes = await this.pool.query('SELECT * FROM payment_methods');
+    this.payments = paymentsRes.rows.map(row => {
+      const method = paymentMethodsRes.rows.find(m => m.id === row.payment_method_id);
+      const user = this.users.find(u => u.id === row.processed_by);
+      return {
+        id: row.id,
+        memberId: row.member_id,
+        membershipId: row.membership_id,
+        paymentMethodId: row.payment_method_id,
+        paymentMethodName: method ? method.name : 'Efectivo',
+        amount: row.amount,
+        referenceNumber: row.reference_number,
+        paymentDate: row.payment_date ? row.payment_date.toISOString() : '',
+        status: row.status,
+        processedBy: row.processed_by,
+        processedByName: user ? `${user.firstName} ${user.lastName}` : 'Personal',
+      };
+    });
+
+    // 6. Load access logs
+    const logsRes = await this.pool.query('SELECT * FROM access_logs ORDER BY scanned_at DESC');
+    this.accessLogs = logsRes.rows.map(row => {
+      const member = this.members.find(m => m.id === row.member_id);
+      const ms = this.memberships.find(m => m.memberId === row.member_id && m.status === 'ACTIVE');
+      return {
+        id: row.id,
+        memberId: row.member_id,
+        memberName: member ? `${member.firstName} ${member.lastName}` : 'Persona Desconocida',
+        memberNumber: member ? member.memberNumber : 'DESCONOCIDO',
+        photoUrl: member ? member.photoUrl : '',
+        membershipType: ms ? ms.planName : 'N/A',
+        membershipEndDate: ms ? ms.endDate : 'N/A',
+        accessGranted: row.access_granted,
+        failureReason: row.failure_reason,
+        scannedAt: row.scanned_at ? row.scanned_at.toISOString() : '',
+      };
+    });
+
+    // 7. Load documents
+    const docsRes = await this.pool.query('SELECT * FROM member_documents WHERE deleted_at IS NULL');
+    this.documents = docsRes.rows.map(row => ({
+      id: row.id,
+      memberId: row.member_id,
+      summary: row.summary,
+      fileData: row.file_path,
+      mimeType: row.mime_type,
+      uploadedAt: row.uploaded_at ? row.uploaded_at.toISOString() : '',
+    }));
+
+    console.log(`Successfully synced PostgreSQL: ${this.users.length} users, ${this.members.length} members, ${this.plans.length} plans, ${this.memberships.length} memberships, ${this.payments.length} payments, ${this.accessLogs.length} access logs, ${this.documents.length} docs.`);
+  }
+
+  loadMockBackup() {
+    this.users = [
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        email: 'goldencorpsgym@gmail.com',
+        passwordHash: createHash('sha256').update('Golden#2026').digest('hex'),
+        firstName: 'Adriana',
+        lastName: 'Garfias',
+        roleId: '1a3b5c7d-9e11-4433-88bb-66cc77dd8801',
+        roleName: 'owner',
+        permissions: ['create:users', 'manage:memberships', 'manage:payments', 'manage:access', 'view:reports', 'system:config'],
+        isActive: true,
+        mustChangePassword: true,
+      },
+    ];
+  }
+
+  async saveUser(user: User) {
+    await this.pool.query(`
+      INSERT INTO users (id, email, password_hash, first_name, last_name, role_id, is_active, must_change_password)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (id) DO UPDATE SET
+        email = $2,
+        password_hash = $3,
+        first_name = $4,
+        last_name = $5,
+        role_id = $6,
+        is_active = $7,
+        must_change_password = $8,
+        updated_at = CURRENT_TIMESTAMP
+    `, [user.id, user.email, user.passwordHash, user.firstName, user.lastName, user.roleId, user.isActive, user.mustChangePassword]);
+  }
+
+  async saveMember(member: Member) {
+    await this.pool.query(`
+      INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, is_active, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ON CONFLICT (id) DO UPDATE SET
+        first_name = $3,
+        last_name = $4,
+        gender = $5,
+        birth_date = $6,
+        email = $7,
+        phone = $8,
+        street = $9,
+        number = $10,
+        city = $11,
+        state = $12,
+        postal_code = $13,
+        emergency_contact_name = $14,
+        emergency_contact_phone = $15,
+        emergency_contact_relationship = $16,
+        is_active = $17,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      member.id,
+      member.memberNumber,
+      member.firstName,
+      member.lastName,
+      member.gender,
+      member.birthDate || null,
+      member.email || null,
+      member.phone,
+      member.street || null,
+      member.number || null,
+      member.city || null,
+      member.state || null,
+      member.postalCode || null,
+      member.emergencyContactName || null,
+      member.emergencyContactPhone || null,
+      member.emergencyContactRelationship || null,
+      member.isActive,
+      member.createdBy || null
+    ]);
+
+    if (member.photoUrl) {
+      await this.pool.query('DELETE FROM member_photos WHERE member_id = $1', [member.id]);
+      await this.pool.query(`
+        INSERT INTO member_photos (member_id, photo_url, is_primary)
+        VALUES ($1, $2, TRUE)
+      `, [member.id, member.photoUrl]);
+    }
+
+    await this.pool.query('DELETE FROM member_notes WHERE member_id = $1', [member.id]);
+    if (member.notes && member.notes.length > 0) {
+      const adminId = '11111111-1111-1111-1111-111111111111';
+      for (const note of member.notes) {
+        await this.pool.query(`
+          INSERT INTO member_notes (member_id, author_id, note)
+          VALUES ($1, $2, $3)
+        `, [member.id, adminId, note]);
+      }
+    }
+  }
+
+  async savePlan(plan: MembershipPlan) {
+    await this.pool.query(`
+      INSERT INTO membership_plans (id, name, price, duration_days, description, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (id) DO UPDATE SET
+        name = $2,
+        price = $3,
+        duration_days = $4,
+        description = $5,
+        is_active = $6,
+        updated_at = CURRENT_TIMESTAMP
+    `, [plan.id, plan.name, plan.price, plan.durationDays, plan.description, plan.isActive]);
+  }
+
+  async saveMembership(membership: Membership) {
+    await this.pool.query(`
+      INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (id) DO UPDATE SET
+        status = $6,
+        start_date = $4,
+        end_date = $5,
+        updated_at = CURRENT_TIMESTAMP
+    `, [membership.id, membership.memberId, membership.planId, membership.startDate || null, membership.endDate || null, membership.status]);
+  }
+
+  async savePayment(payment: Payment) {
+    await this.pool.query(`
+      INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (id) DO UPDATE SET
+        status = $8,
+        updated_at = CURRENT_TIMESTAMP
+    `, [payment.id, payment.memberId, payment.membershipId, payment.paymentMethodId, payment.amount, payment.referenceNumber, payment.paymentDate || null, payment.status, payment.processedBy]);
+  }
+
+  async saveAccessLog(log: AccessLog) {
+    await this.pool.query(`
+      INSERT INTO access_logs (id, member_id, access_granted, failure_reason, scanned_at)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO NOTHING
+    `, [log.id, log.memberId || null, log.accessGranted, log.failureReason || null, log.scannedAt || null]);
+  }
+
+  async saveDocument(doc: MemberDocument) {
+    await this.pool.query(`
+      INSERT INTO member_documents (id, member_id, summary, file_path, mime_type, uploaded_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (id) DO UPDATE SET
+        summary = $3,
+        file_path = $4,
+        mime_type = $5
+    `, [doc.id, doc.memberId, doc.summary, doc.fileData, doc.mimeType, doc.uploadedAt || null]);
+  }
+
+  async deleteDocument(docId: string) {
+    await this.pool.query('DELETE FROM member_documents WHERE id = $1', [docId]);
+  }
+}
+
+

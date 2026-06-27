@@ -7,6 +7,7 @@ import MembersView from '../views/MembersView.vue';
 import MembershipsView from '../views/MembershipsView.vue';
 import PaymentsView from '../views/PaymentsView.vue';
 import UserAdminView from '../views/UserAdminView.vue';
+import ChangePasswordView from '../views/ChangePasswordView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -14,6 +15,11 @@ const routes: Array<RouteRecordRaw> = [
     name: 'Login',
     component: LoginView,
     meta: { public: true },
+  },
+  {
+    path: '/change-password',
+    name: 'ChangePassword',
+    component: ChangePasswordView,
   },
   {
     path: '/',
@@ -59,6 +65,8 @@ router.beforeEach((to, from, next) => {
     next();
   } else if (!authStore.isAuthenticated) {
     next('/login');
+  } else if (authStore.user?.mustChangePassword && to.path !== '/change-password') {
+    next('/change-password');
   } else {
     next();
   }
@@ -66,3 +74,4 @@ router.beforeEach((to, from, next) => {
 
 export default router;
 export { routes };
+
