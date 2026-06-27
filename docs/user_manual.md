@@ -16,42 +16,62 @@ Once initialized, open your web browser and navigate to:
 
 ---
 
-## 2. Default Login Credentials
+## 2. Default Owner Login Credentials
 
-Use the following staff accounts to log in and test different RBAC permission configurations:
+The system initializes with a default owner/administrator account. On first login, you are required to change this password:
 
-| Role | Email | Password | Allowed Actions |
-| :--- | :--- | :--- | :--- |
-| **Owner** | `owner@goldengym.local` | `Password123` | Full access, user creation, config settings |
-| **Administrator** | `admin@goldengym.local` | `Password123` | Plan setups, member assignments, payments |
-| **Receptionist** | `reception@goldengym.local` | `Password123` | Member signups, scans, recording payments |
+* **Email**: `goldencorpsgym@gmail.com`
+* **Temporary Password**: `Golden#2026`
+* **Rules for new password**: At least 8 characters, at least one number, and at least one special character (e.g. `@`, `#`, `$`, etc.).
+
+Additional receptionist, supervisor, or trainer accounts can be created and managed via the **Administración de Personal** view by owners.
 
 ---
 
 ## 3. Operations Workflow
 
 ### A. Registering a Member
-1. Click **+ Register Member** in the top right.
-2. Complete personal info (First/Last name, phone, birthday).
-3. (Optional) Provide address details, emergency contacts, and trainer notes.
-4. Click **Save Profile**.
+1. Click **Nuevo Miembro** from the top header of the **Directorio de Miembros** page.
+2. Complete personal information (First/Last name, phone, birthday, gender, email).
+3. (Optional) Provide address details, emergency contact information, and specific trainer notes.
+4. **Profile Photo**: 
+   * Click **Subir Archivo** to choose a pre-existing image file.
+   * Click **Usar Cámara** to start the local webcam feed, and press **Tomar Foto** to snap a snapshot.
+5. Click **Guardar Perfil** to persist the profile to PostgreSQL.
 
 ### B. Assigning a Membership Plan
-1. Select a member from the sidebar in the **Members** view.
-2. Click **Assign Plan** on the dashboard or Member details page.
+1. Select a member from the sidebar list in the **Members** view.
+2. Click **Asignar Plan** on the member profile dashboard.
 3. Select the desired plan (e.g. Monthly Standard).
 4. Initially, status is set to `PENDING` until a payment is registered.
 
 ### C. Registering a Payment
-1. Click **$ Register Payment** from the quick actions.
+1. Click **$ Registrar Pago** from the quick actions or payments tab.
 2. Select the member and their pending membership plan.
 3. Choose the payment method (Cash, Debit Card, Credit Card, Transfer) and amount.
 4. Click **Record Payment**. The membership status automatically transitions to `ACTIVE`.
 
-### D. Simulating a Fingerprint Scan
-1. Navigate to the **Access Control** screen.
-2. The scanner is initially in `Ready for Verification` (waiting state).
-3. On the right-side panel, use the **Biometric Simulator** buttons to fire events:
-   - **Simulate Scan (Roberto)**: Simulates a valid match, showing a green checkmark and welcome card.
-   - **Simulate Scan (John Doe)**: Simulates an expired membership match, showing a red alarm warning.
-   - **Simulate Unknown Finger**: Simulates scanning a finger not registered to any profile, raising a match failure alarm.
+### D. Registering Attendance (Receptionist Check-In Console)
+The biometrics scanner simulation has been replaced by a manual access registry interface for receptionist convenience:
+1. Navigate to the **Control de Acceso** view.
+2. In the right panel under **Asistencia Manual**, type the member's name, surname, or folio (ID) into the member search input.
+3. Select the desired member from the dropdown results.
+4. Click **Registrar Entrada Manual**.
+5. The console will transition:
+   * **Success**: Shows a green welcome message showing the member's name and remaining active plan days.
+   * **Access Denied**: Shows a red warning if the membership is expired or the member is unrecognized.
+6. Click **Siguiente Registro** or wait 40 seconds to reset the console.
+
+### E. Member Documents Vault
+1. Select a member in the directory and click the **Documentos** tab.
+2. Choose a PDF file (e.g. signed contract, medical certificate) using the file uploader.
+3. Add a short summary or description of the document.
+4. Click **Subir Documento** to archive it into the Postgres database.
+5. View, download, or delete uploaded documents instantly from the document list.
+
+### F. Staff Administration (Owners Only)
+1. Navigate to the **Administración de Personal** panel.
+2. View all active and inactive staff members.
+3. Click **Nuevo Personal** to create a receptionist, gerency manager, or trainer account (assigned a default temporary password).
+4. Reset password or change role/details at any time by clicking **Editar** on their entry.
+5. Deactivate or reactivate accounts to restrict system access immediately.
