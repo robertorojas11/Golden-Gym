@@ -164,14 +164,15 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(payment),
       });
       if (res.ok) {
+        const createdPayment = await res.json();
         await fetchMemberDetail(payment.memberId);
         syncStore.registerModification('REGISTRO_PAGO', `Pago registrado para ${memberName}: $${amountMXN.toLocaleString('es-MX')} MXN`);
-        return true;
+        return createdPayment;
       }
     } catch (e) {
       console.error(e);
     }
-    return false;
+    return null;
   }
 
   async function createPlan(planData: any) {
