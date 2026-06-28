@@ -2,9 +2,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useBiometricStore } from '../stores/biometric.store';
 import { useMemberStore } from '../stores/member.store';
+import { useAuthStore } from '../stores/auth.store';
 
 const store = useBiometricStore();
 const memberStore = useMemberStore();
+const authStore = useAuthStore();
 
 const timeString = ref('');
 const dateString = ref('');
@@ -21,6 +23,20 @@ const filteredMembers = computed(() => {
     m.memberNumber.toLowerCase().includes(q)
   );
 });
+
+function getMemberAvatarUrl(result: any): string {
+  if (result?.photoUrl) return result.photoUrl;
+  const member = memberStore.members.find(m => m.id === result?.memberId);
+  const gender = member ? member.gender : '';
+  const g = String(gender || '').toLowerCase();
+  if (g.startsWith('f')) {
+    return '/woman_placeholder.png';
+  } else if (g.startsWith('m')) {
+    return '/man_placeholder.png';
+  } else {
+    return '/other_placeholder.png';
+  }
+}
 
 function selectManualMember(member: any) {
   selectedSimMemberId.value = member.id;
@@ -153,9 +169,9 @@ onUnmounted(() => {
                 <!-- Detalles del Miembro -->
                 <div class="w-full bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex items-center space-x-6">
                   <img 
-                    :src="store.activeResult.photoUrl || ''" 
+                    :src="getMemberAvatarUrl(store.activeResult)" 
                     alt="Foto de Miembro" 
-                    class="w-24 h-24 rounded-xl object-cover bg-neutral-950 border border-neutral-700" 
+                    class="w-24 h-24 rounded-xl object-cover object-center bg-neutral-950 border border-neutral-700" 
                   />
                   <div class="flex-grow space-y-1">
                     <span class="bg-emerald-500/15 text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded">ACCESO CONCEDIDO</span>
@@ -226,7 +242,7 @@ onUnmounted(() => {
         <div class="lg:col-span-4 space-y-6 flex flex-col">
           
           <!-- Tarjeta de Controles de Registro Manual -->
-          <div class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
+          <div v-if="authStore.hasPermission('manage:access')" class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
             <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Asistencia Manual</h3>
             
             <div class="space-y-4 pt-1">

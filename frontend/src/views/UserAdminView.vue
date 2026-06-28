@@ -10,7 +10,7 @@ const staff = ref<any[]>([]);
 const API_URL = 'http://localhost:3000';
 
 function getHeaders() {
-  const token = localStorage.getItem('gg_auth_token');
+  const token = localStorage.getItem('access_token');
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,

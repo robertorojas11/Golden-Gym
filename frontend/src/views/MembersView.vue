@@ -387,6 +387,18 @@ async function confirmDeactivate() {
   }
 }
 
+function getMemberAvatarUrl(member: any): string {
+  if (member?.photoUrl) return member.photoUrl;
+  const gender = String(member?.gender || '').toLowerCase();
+  if (gender.startsWith('f')) {
+    return '/woman_placeholder.png';
+  } else if (gender.startsWith('m')) {
+    return '/man_placeholder.png';
+  } else {
+    return '/other_placeholder.png';
+  }
+}
+
 async function downloadReceipt(payment: any) {
   if (!memberStore.selectedMember) return;
   const membership = memberStore.activeMemberships.find((m: any) => m.id === payment.membershipId);
@@ -486,19 +498,26 @@ async function handleSaveMember() {
 const showRenewPlanModal = ref(false);
 const renewPlanForm = ref({
   planId: '',
+  startDate: '',
 });
 
 function openRenewPlanModal() {
   if (!memberStore.selectedMember) return;
   renewPlanForm.value.planId = memberStore.plans[0]?.id || '';
+  renewPlanForm.value.startDate = '';
   showRenewPlanModal.value = true;
 }
 
 async function handleRenewPlan() {
   if (!memberStore.selectedMember) return;
-  const success = await memberStore.assignMembership(memberStore.selectedMember.id, renewPlanForm.value.planId);
+  const success = await memberStore.assignMembership(
+    memberStore.selectedMember.id, 
+    renewPlanForm.value.planId,
+    renewPlanForm.value.startDate || undefined
+  );
   if (success) {
     showRenewPlanModal.value = false;
+    renewPlanForm.value.startDate = '';
     triggerToast('Membresía asignada/renovada correctamente.');
     memberStore.fetchMemberDetail(memberStore.selectedMember.id);
   } else {
@@ -637,6 +656,7 @@ const formattedNotes = computed(() => {
         <p class="text-xs text-neutral-400 mt-1 font-sans">Expedientes, estados de membresía y registros de entrada</p>
       </div>
       <button 
+        v-if="authStore.hasPermission('manage:access')"
         @click="showAddMemberModal = true"
         class="bg-[#FA2F2A] hover:bg-[#d6201b] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all flex items-center space-x-1.5 font-sans cursor-pointer"
       >
@@ -728,7 +748,7 @@ const formattedNotes = computed(() => {
               <div v-if="memberStore.selectedMember?.id === m.id" class="absolute left-0 top-3 bottom-3 w-1 bg-[#F59E0B] rounded-r-md"></div>
 
               <!-- Avatar -->
-              <img :src="m.photoUrl || ''" alt="Avatar" class="w-10 h-10 rounded-full border border-gray-900 bg-[#000000] object-cover" />
+              <img :src="getMemberAvatarUrl(m)" alt="Avatar" class="w-10 h-10 rounded-full border border-gray-900 bg-[#000000] object-cover object-center" />
               
               <div class="flex-grow min-w-0">
                 <div class="flex items-center justify-between">
@@ -755,12 +775,19 @@ const formattedNotes = computed(() => {
             </div>
 
             <!-- Estado Vacío -->
-            <div v-if="filteredMembers.length === 0" class="flex flex-col items-center justify-center py-16 px-4 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-neutral-700 mb-3 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <div v-if="filteredMembers.length === 0" class="flex flex-col items-center justify-center py-16 px-4 text-center animate-in fade-in duration-200">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-neutral-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
-              <p class="text-xs font-bold text-neutral-300">No hay coincidencias</p>
-              <p class="text-[10px] text-neutral-500 mt-1 max-w-[200px]">Modifique los filtros o el término de búsqueda.</p>
+              <p class="text-xs font-bold text-neutral-300">No hay miembros</p>
+              <p class="text-[10px] text-neutral-500 mt-1 mb-4 max-w-[200px]">Cree un nuevo expediente para comenzar.</p>
+              <button 
+                v-if="authStore.hasPermission('manage:access')"
+                @click="showAddMemberModal = true"
+                class="bg-[#FA2F2A] hover:bg-[#d6201b] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all inline-flex items-center space-x-1.5 cursor-pointer font-sans"
+              >
+                <span>Registrar Miembro</span>
+              </button>
             </div>
           </div>
         </div>
@@ -795,9 +822,9 @@ const formattedNotes = computed(() => {
               <!-- Avatar Grande (80px) -->
               <div class="relative group flex-shrink-0">
                 <img 
-                  :src="memberStore.selectedMember.photoUrl || ''" 
+                  :src="getMemberAvatarUrl(memberStore.selectedMember)" 
                   alt="Avatar" 
-                  class="w-20 h-20 rounded-2xl bg-[#000000] border border-gray-900 shadow-xl object-cover" 
+                  class="w-20 h-20 rounded-2xl bg-[#000000] border border-gray-900 shadow-xl object-cover object-center" 
                 />
                 <span class="absolute -bottom-1 -right-1 flex h-4 w-4">
                   <span v-if="memberStore.selectedMember.isActive" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75"></span>
@@ -837,19 +864,21 @@ const formattedNotes = computed(() => {
             <!-- Botones de Acción -->
             <div class="flex items-center space-x-2.5 w-full md:w-auto justify-end relative z-10">
               <button 
+                v-if="authStore.hasPermission('manage:access')"
                 @click="openEditMemberModal"
                 class="bg-neutral-900 hover:bg-neutral-850 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all border border-gray-800/80 cursor-pointer"
               >
                 Editar Perfil
               </button>
               <button 
+                v-if="authStore.hasPermission('manage:memberships')"
                 @click="openRenewPlanModal"
                 class="bg-[#F59E0B] hover:bg-[#d97706] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer hover:scale-102"
               >
                 Renovar Plan
               </button>
               <button 
-                v-if="memberStore.selectedMember.isActive"
+                v-if="authStore.hasPermission('manage:access') && memberStore.selectedMember.isActive"
                 @click="triggerDeactivate"
                 class="bg-[#FA2F2A]/10 border border-[#FA2F2A]/20 text-[#FA2F2A] hover:bg-[#FA2F2A] hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
               >
@@ -1144,6 +1173,7 @@ const formattedNotes = computed(() => {
                 </div>
                 <!-- Botón de toggle en el encabezado -->
                 <button 
+                  v-if="authStore.hasPermission('manage:access')"
                   @click="toggleAddNote"
                   class="bg-[#F59E0B] hover:bg-[#d97706] text-black px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md hover:scale-102 cursor-pointer"
                 >
@@ -1359,7 +1389,7 @@ const formattedNotes = computed(() => {
             </div>
 
             <!-- Upload document Form -->
-            <form @submit.prevent="handleUploadDocument" class="bg-[#0A0A0A] p-4 rounded-xl border border-gray-900 space-y-4">
+            <form v-if="authStore.hasPermission('manage:access')" @submit.prevent="handleUploadDocument" class="bg-[#0A0A0A] p-4 rounded-xl border border-gray-900 space-y-4">
               <h5 class="text-xs font-bold text-white uppercase tracking-wider">Subir nuevo documento</h5>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1436,6 +1466,7 @@ const formattedNotes = computed(() => {
                     </button>
                     
                     <button 
+                      v-if="authStore.hasPermission('manage:access')"
                       @click="handleDeleteDocument(doc.id)"
                       class="p-2 bg-neutral-900 hover:bg-red-950/40 border border-transparent hover:border-red-900/40 rounded-lg text-neutral-450 hover:text-[#FA2F2A] transition-all"
                       title="Eliminar"
@@ -1589,6 +1620,15 @@ const formattedNotes = computed(() => {
                 {{ plan.name }} — ${{ plan.price / 100 }} MXN ({{ plan.durationDays }} días)
               </option>
             </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Fecha de Inicio (Opcional - Socios Antiguos)</label>
+            <input 
+              v-model="renewPlanForm.startDate" 
+              type="date"
+              class="w-full saas-input"
+            />
           </div>
 
           <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end">

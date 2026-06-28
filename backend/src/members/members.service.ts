@@ -77,7 +77,7 @@ export class MembersService {
       emergencyContactRelationship: memberData.emergencyContactRelationship || '',
       registrationDate: new Date().toISOString().split('T')[0],
       isActive: true,
-      photoUrl: memberData.photoUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${memberData.firstName}`,
+      photoUrl: memberData.photoUrl || '',
       notes: memberData.notes || [],
       createdBy: userId || '33333333-3333-3333-3333-333333333333',
       createdByName: user ? `${user.firstName} ${user.lastName}` : 'Lucas Vance',

@@ -121,12 +121,34 @@ export class MockDatabase implements OnModuleInit {
 
   async onModuleInit() {
     console.log('Initializing connection to PostgreSQL...');
-    try {
-      await this.pool.query('SELECT 1');
-      console.log('PostgreSQL connection established successfully.');
-      await this.loadAllFromDatabase();
-    } catch (err) {
-      console.error('Failed to initialize PostgreSQL database connection. Loading hardcoded mock values.', err);
+    const maxRetries = 10;
+    const delayMs = 3000;
+    let connected = false;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.pool.query('SELECT 1');
+        console.log('PostgreSQL connection established successfully.');
+        connected = true;
+        break;
+      } catch (err) {
+        console.warn(`PostgreSQL connection attempt ${attempt}/${maxRetries} failed. Retrying in ${delayMs / 1000}s...`);
+        if (attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          console.error('Failed to initialize PostgreSQL database connection after maximum attempts. Loading hardcoded mock values.', err);
+        }
+      }
+    }
+
+    if (connected) {
+      try {
+        await this.loadAllFromDatabase();
+      } catch (err) {
+        console.error('Failed to load data from PostgreSQL database. Falling back to mock values.', err);
+        this.loadMockBackup();
+      }
+    } else {
       this.loadMockBackup();
     }
   }
@@ -281,7 +303,7 @@ export class MockDatabase implements OnModuleInit {
         id: '11111111-1111-1111-1111-111111111111',
         email: 'goldencorpsgym@gmail.com',
         passwordHash: createHash('sha256').update('Golden#2026').digest('hex'),
-        firstName: 'Adriana',
+        firstName: 'Angie',
         lastName: 'Garfias',
         roleId: '1a3b5c7d-9e11-4433-88bb-66cc77dd8801',
         roleName: 'owner',

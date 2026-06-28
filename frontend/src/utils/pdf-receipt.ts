@@ -19,7 +19,7 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   doc.setTextColor(80, 80, 80);
   doc.text('Madero 196, Centro, 76000', 40, 17, { align: 'center' });
   doc.text('Santiago de Querétaro, Qro.', 40, 21, { align: 'center' });
-  doc.text('Tel: 442-123-4567', 40, 25, { align: 'center' });
+  doc.text('Tel: 446-117-7918', 40, 25, { align: 'center' });
   
   // Divider
   doc.setDrawColor(210, 210, 210);

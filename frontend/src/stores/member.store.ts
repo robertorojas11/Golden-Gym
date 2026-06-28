@@ -128,17 +128,22 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
-  async function assignMembership(memberId: string, planId: string) {
+  async function assignMembership(memberId: string, planId: string, startDate?: string) {
     try {
       const member = members.value.find(m => m.id === memberId);
       const plan = plans.value.find(p => p.id === planId);
       const memberName = member ? `${member.firstName} ${member.lastName}` : memberId;
       const planName = plan ? plan.name : planId;
       
+      const payload: any = { memberId, planId };
+      if (startDate) {
+        payload.startDate = startDate;
+      }
+      
       const res = await fetch(`${API_URL}/memberships/assign`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ memberId, planId }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         await fetchMemberDetail(memberId);
