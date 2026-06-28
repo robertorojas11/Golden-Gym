@@ -25,7 +25,7 @@ export class MembershipsService {
     );
   }
 
-  async assignPlan(memberId: string, planId: string): Promise<Membership> {
+  async assignPlan(memberId: string, planId: string, customStartDate?: string): Promise<Membership> {
     const plan = this.db.plans.find((p) => p.id === planId);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
@@ -34,9 +34,9 @@ export class MembershipsService {
     // Check if there's already an active membership.
     // If active, renew starts at the end of the active membership.
     const active = this.findActiveMembership(memberId);
-    let startDateStr = new Date().toISOString().split('T')[0];
+    let startDateStr = customStartDate || new Date().toISOString().split('T')[0];
 
-    if (active) {
+    if (active && !customStartDate) {
       const activeEndDate = new Date(active.endDate);
       activeEndDate.setDate(activeEndDate.getDate() + 1);
       startDateStr = activeEndDate.toISOString().split('T')[0];

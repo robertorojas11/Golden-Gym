@@ -45,9 +45,9 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 
 -- 4. Create Initial Staff Accounts
 -- Default password is encrypted using SHA-256 for: 'Golden#2026'
--- SHA-256: 3a2d21ca5208479e0a022510b64d1f2e1fa074fa2cd1bd34fe7d26b5ad9508bc
+-- SHA-256: f6467178e06362ac0b6afedea6c7a008ae29d7437435291bb9a7a8e2fe3d4975
 INSERT INTO users (id, email, password_hash, first_name, last_name, role_id, is_active, must_change_password) VALUES
-('11111111-1111-1111-1111-111111111111', 'goldencorpsgym@gmail.com', '3a2d21ca5208479e0a022510b64d1f2e1fa074fa2cd1bd34fe7d26b5ad9508bc', 'Adriana', 'Garfias', '1a3b5c7d-9e11-4433-88bb-66cc77dd8801', TRUE, TRUE);
+('11111111-1111-1111-1111-111111111111', 'goldencorpsgym@gmail.com', 'f6467178e06362ac0b6afedea6c7a008ae29d7437435291bb9a7a8e2fe3d4975', 'Angie', 'Garfias', '1a3b5c7d-9e11-4433-88bb-66cc77dd8801', TRUE, TRUE);
 
 -- 5. Create Payment Methods
 INSERT INTO payment_methods (id, name, is_active) VALUES
@@ -55,15 +55,6 @@ INSERT INTO payment_methods (id, name, is_active) VALUES
 ('90000000-0000-0000-0000-000000000002', 'Tarjeta de Débito', TRUE),
 ('90000000-0000-0000-0000-000000000003', 'Tarjeta de Crédito', TRUE),
 ('90000000-0000-0000-0000-000000000004', 'Transferencia', TRUE);
-
--- 6. Insert Default Membership Plans (Prices in cents of MXN)
-INSERT INTO membership_plans (id, name, price, duration_days, description) VALUES
-('a0000000-0000-0000-0000-000000000001', 'Pase Diario', 4000, 1, 'Acceso completo por 24 horas a áreas de pesas y cardio'),
-('a0000000-0000-0000-0000-000000000002', 'Pase Semanal', 10000, 7, 'Acceso completo por 7 días habiles consecutivos'),
-('a0000000-0000-0000-0000-000000000003', 'Mensual Estándar', 35000, 30, 'Acceso completo, lockers y clases incluidas'),
-('a0000000-0000-0000-0000-000000000004', 'Trimestral Estándar', 95000, 90, '3 meses de acceso completo, incluye acceso a clases y uso de lockers'),
-('a0000000-0000-0000-0000-000000000005', 'Semestral Estandar', 200000, 180, '6 meses de acceso completo, incluye acceso a clases y uso de lockers'),
-('a0000000-0000-0000-0000-000000000006', 'Anual Estandar', 400000, 365, '12 meses de acceso completo, incluye acceso a clases y uso de lockers');
 
 -- 7. System Settings
 INSERT INTO system_settings (key, value, description) VALUES

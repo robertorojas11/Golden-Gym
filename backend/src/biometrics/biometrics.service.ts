@@ -62,7 +62,7 @@ export class BiometricsService {
       memberId: member?.id,
       memberName: member ? `${member.firstName} ${member.lastName}` : 'Persona Desconocida',
       memberNumber: member?.memberNumber || 'DESCONOCIDO',
-      photoUrl: member?.photoUrl || 'https://api.dicebear.com/7.x/adventurer/svg?seed=Unknown',
+      photoUrl: member?.photoUrl || '',
       membershipType: member
         ? this.db.memberships.find((ms) => ms.memberId === member!.id)?.planName || 'Sin Plan'
         : 'N/A',
