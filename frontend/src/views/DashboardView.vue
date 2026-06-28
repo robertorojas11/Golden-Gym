@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useMemberStore } from '../stores/member.store';
+import { downloadPaymentReceipt } from '../utils/pdf-receipt';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -231,8 +232,20 @@ async function submitRegisterPayment() {
     ...paymentForm.value,
     amount: paymentForm.value.amount * 100, // a centavos
   };
-  const success = await memberStore.registerPayment(payload);
-  if (success) {
+  const createdPayment = await memberStore.registerPayment(payload);
+  if (createdPayment) {
+    // Generate and download PDF receipt
+    try {
+      const member = memberStore.members.find((m) => m.id === payload.memberId);
+      const membership = memberMemberships.value.find((ms) => ms.id === payload.membershipId);
+      const plan = membership ? memberStore.plans.find((p) => p.id === membership.planId) : null;
+      const planName = plan ? plan.name : 'Plan de Membresía';
+      
+      await downloadPaymentReceipt(createdPayment, member, planName);
+    } catch (e) {
+      console.error('Error generating PDF receipt', e);
+    }
+
     showRegisterPayment.value = false;
     paymentForm.value = {
       memberId: '',

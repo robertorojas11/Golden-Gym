@@ -45,11 +45,13 @@ Additional receptionist, supervisor, or trainer accounts can be created and mana
 3. Select the desired plan (e.g. Monthly Standard).
 4. Initially, status is set to `PENDING` until a payment is registered.
 
-### C. Registering a Payment
+### C. Registering a Payment & Receipt PDF Export
 1. Click **$ Registrar Pago** from the quick actions or payments tab.
 2. Select the member and their pending membership plan.
 3. Choose the payment method (Cash, Debit Card, Credit Card, Transfer) and amount.
 4. Click **Record Payment**. The membership status automatically transitions to `ACTIVE`.
+5. **Download Receipt**: On successful payment, the browser automatically generates and prompts a PDF receipt download containing store branding details, reference code, client metadata, concept total, cashier name, and validation timestamps.
+6. **Reprinting Receipts**: If you need to reprint a receipt for any past payment, navigate to the **Miembros** directory, select the member, open the **Recibos de Pago** tab, locate the desired transaction row, and click the **Ticket** action button to download the PDF receipt again.
 
 ### D. Registering Attendance (Receptionist Check-In Console)
 The biometrics scanner simulation has been replaced by a manual access registry interface for receptionist convenience:

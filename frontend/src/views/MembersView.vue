@@ -4,6 +4,7 @@ import { useMemberStore } from '../stores/member.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useSyncStore } from '../stores/sync.store';
 import { useBiometricStore } from '../stores/biometric.store';
+import { downloadPaymentReceipt } from '../utils/pdf-receipt';
 
 const memberStore = useMemberStore();
 const authStore = useAuthStore();
@@ -384,6 +385,15 @@ async function confirmDeactivate() {
   } finally {
     isDeactivating.value = false;
   }
+}
+
+async function downloadReceipt(payment: any) {
+  if (!memberStore.selectedMember) return;
+  const membership = memberStore.activeMemberships.find((m: any) => m.id === payment.membershipId);
+  const plan = membership ? memberStore.plans.find((p: any) => p.id === membership.planId) : null;
+  const planName = plan ? plan.name : 'Plan de Membresía';
+  
+  await downloadPaymentReceipt(payment, memberStore.selectedMember, planName);
 }
 
 // Modal de edición de membresía (Solo dueños)
@@ -1264,7 +1274,8 @@ const formattedNotes = computed(() => {
                     <th class="p-3">Fecha y Hora</th>
                     <th class="p-3">Cajero / Receptor</th>
                     <th class="p-3">Monto</th>
-                    <th class="p-3 text-right">Estatus</th>
+                    <th class="p-3">Estatus</th>
+                    <th class="p-3 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-950/40 font-mono">
@@ -1274,13 +1285,25 @@ const formattedNotes = computed(() => {
                     <td class="p-3 text-neutral-400">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
                     <td class="p-3 text-neutral-300 font-sans">{{ pay.processedByName || 'Cajero' }}</td>
                     <td class="p-3 font-bold text-white">${{ pay.amount / 100 }} MXN</td>
-                    <td class="p-3 text-right">
+                    <td class="p-3">
                       <span 
                         class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border font-mono"
                         :class="pay.status === 'PAID' ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' : 'bg-[#FA2F2A]/10 text-[#FA2F2A] border-[#FA2F2A]/20'"
                       >
                         {{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}
                       </span>
+                    </td>
+                    <td class="p-3 text-right font-sans">
+                      <button 
+                        @click="downloadReceipt(pay)"
+                        class="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-850 hover:text-white rounded-lg text-neutral-300 transition-all cursor-pointer text-[10px] font-bold inline-flex items-center space-x-1"
+                        title="Descargar PDF"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Ticket</span>
+                      </button>
                     </td>
                   </tr>
                   <tr v-if="memberStore.activePayments.length === 0">

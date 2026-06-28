@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from './stores/auth.store';
 import { useSyncStore } from './stores/sync.store';
@@ -11,15 +11,28 @@ const syncStore = useSyncStore();
 
 const isLoginPage = computed(() => route.path === '/login');
 const showPopover = ref(false);
+const isMobileMenuOpen = ref(false);
 
 function togglePopover() {
   showPopover.value = !showPopover.value;
+}
+
+function toggleMobileMenu() {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+}
+
+function closeMobileMenu() {
+  isMobileMenuOpen.value = false;
 }
 
 function handleLogout() {
   authStore.logout();
   router.push('/login');
 }
+
+watch(() => route.path, () => {
+  closeMobileMenu();
+});
 
 onMounted(() => {
   syncStore.init();
@@ -160,12 +173,65 @@ onMounted(() => {
         <!-- Botón de Cerrar Sesión -->
         <button 
           @click="handleLogout"
-          class="bg-[#FA2F2A] hover:bg-[#d6201b] text-white text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg tracking-wider transition-all"
+          class="hidden md:block bg-[#FA2F2A] hover:bg-[#d6201b] text-white text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg tracking-wider transition-all"
         >
           Cerrar Sesión
         </button>
+
+        <!-- Hamburger Button (Mobile Only) -->
+        <button 
+          @click="toggleMobileMenu" 
+          class="md:hidden text-white hover:text-[#FA2F2A] transition-colors focus:outline-none cursor-pointer p-1"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path v-if="!isMobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </header>
+
+    <!-- MOBILE MENU DRAWER (Mobile Only) -->
+    <div 
+      v-if="isMobileMenuOpen && !isLoginPage" 
+      class="md:hidden fixed inset-x-0 top-20 bottom-0 bg-black/95 backdrop-blur-md z-30 flex flex-col p-6 space-y-6 animate-in fade-in slide-in-from-top-5 duration-200 border-t border-neutral-900"
+    >
+      <nav class="flex flex-col space-y-5 text-sm font-bold uppercase tracking-wider text-neutral-400">
+        <router-link to="/" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+          Inicio
+        </router-link>
+        <router-link to="/access-control" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+          Control de Acceso
+        </router-link>
+        <router-link to="/members" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+          Miembros
+        </router-link>
+        <router-link to="/memberships" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+          Planes
+        </router-link>
+        <router-link to="/payments" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+          Pagos
+        </router-link>
+        <router-link 
+          v-if="authStore.userRole === 'owner'" 
+          to="/users" 
+          class="hover:text-white transition-colors py-1" 
+          active-class="text-white border-l-4 border-[#FA2F2A] pl-3"
+        >
+          Personal
+        </router-link>
+      </nav>
+
+      <hr class="border-neutral-900" />
+
+      <!-- Cerrar Sesión Mobile -->
+      <button 
+        @click="handleLogout(); closeMobileMenu();"
+        class="w-full bg-[#FA2F2A] hover:bg-[#d6201b] text-white text-xs font-bold uppercase py-3 rounded-xl tracking-wider transition-all cursor-pointer shadow-md"
+      >
+        Cerrar Sesión
+      </button>
+    </div>
 
     <!-- Cuerpo principal de contenido -->
     <main class="flex-grow">
