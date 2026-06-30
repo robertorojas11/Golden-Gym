@@ -11,7 +11,7 @@ const password = ref('Golden#2026');
 const errorMsg = ref('');
 const isLoading = ref(false);
 
-const API_URL = 'http://localhost:3000';
+const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
 async function handleLogin() {
   isLoading.value = true;

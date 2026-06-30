@@ -32,13 +32,12 @@ export class MembershipsService {
     }
 
     // Check if there is already an active membership.
-    // If active, it cannot be assigned to another different plan.
     const activePlan = this.db.memberships.find(
       (m) => m.memberId === memberId && m.status === 'ACTIVE'
     );
 
-    if (activePlan && activePlan.planId !== planId) {
-      throw new BadRequestException('El miembro principal ya tiene un plan activo. No se puede asignar un plan diferente.');
+    if (activePlan) {
+      throw new BadRequestException('El miembro principal ya tiene un plan activo. No se puede asignar otro plan hasta que este expire o sea cancelado.');
     }
 
     // Check additional members active plans
@@ -47,10 +46,10 @@ export class MembershipsService {
         const activeAdd = this.db.memberships.find(
           (m) => m.memberId === addId && m.status === 'ACTIVE'
         );
-        if (activeAdd && activeAdd.planId !== planId) {
+        if (activeAdd) {
           const addMember = this.db.members.find(m => m.id === addId);
           const addName = addMember ? `${addMember.firstName} ${addMember.lastName}` : addId;
-          throw new BadRequestException(`El miembro adicional ${addName} ya tiene un plan activo. No se puede vincular a un plan diferente.`);
+          throw new BadRequestException(`El miembro adicional ${addName} ya tiene un plan activo. No se puede vincular a otro plan.`);
         }
       }
     }
@@ -207,5 +206,9 @@ export class MembershipsService {
     }
     await this.db.saveMembership(ms);
     return ms;
+  }
+
+  findAllMemberships(): Membership[] {
+    return this.db.memberships;
   }
 }

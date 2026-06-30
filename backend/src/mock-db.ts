@@ -384,12 +384,14 @@ export class MockDatabase implements OnModuleInit {
       member.createdBy || null
     ]);
 
-    if (member.photoUrl) {
+    if (member.photoUrl !== undefined) {
       await this.pool.query('DELETE FROM member_photos WHERE member_id = $1', [member.id]);
-      await this.pool.query(`
-        INSERT INTO member_photos (member_id, photo_url, is_primary)
-        VALUES ($1, $2, TRUE)
-      `, [member.id, member.photoUrl]);
+      if (member.photoUrl) {
+        await this.pool.query(`
+          INSERT INTO member_photos (member_id, photo_url, is_primary)
+          VALUES ($1, $2, TRUE)
+        `, [member.id, member.photoUrl]);
+      }
     }
 
     await this.pool.query('DELETE FROM member_notes WHERE member_id = $1', [member.id]);

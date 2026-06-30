@@ -21,7 +21,7 @@ export const useBiometricStore = defineStore('biometric', () => {
   const logs = ref<any[]>([]);
   let resetTimeoutId: any = null;
 
-  const API_URL = 'http://localhost:3000'; // Target Docker backend port or local dev
+  const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`; // Target Docker backend port or local dev
 
   // BroadcastChannel for cross-tab synchronization (Dual-monitor setup)
   const channel = typeof window !== 'undefined' ? new BroadcastChannel('goldengym_access_sync') : null;

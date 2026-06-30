@@ -14,7 +14,7 @@ const dateTo = ref('');
 const selectedStatus = ref('ALL');
 const selectedMethod = ref('ALL');
 
-const API_URL = 'http://localhost:3000';
+const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
 async function fetchPayments() {
   const token = authStore.token;

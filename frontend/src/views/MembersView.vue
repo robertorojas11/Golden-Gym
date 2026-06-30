@@ -11,6 +11,34 @@ const authStore = useAuthStore();
 const syncStore = useSyncStore();
 const biometricStore = useBiometricStore();
 
+function formatDateDDMMYYYY(dateInput: any): string {
+  if (!dateInput) return 'N/A';
+  if (typeof dateInput === 'string' && dateInput.includes('-')) {
+    const parts = dateInput.split('T')[0].split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function formatDateTimeDDMMYYYY(dateInput: any): string {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
 // Estados de carga
 const isLoading = ref(false);
 const isDetailLoading = ref(false);
@@ -325,7 +353,7 @@ function toggleAddNote() {
 async function saveNote() {
   if (!noteText.value || !memberStore.selectedMember) return;
   const token = localStorage.getItem('access_token');
-  const res = await fetch(`http://localhost:3000/members/${memberStore.selectedMember.id}/notes`, {
+  const res = await fetch(`${window.location.protocol}//${window.location.hostname}:3000/members/${memberStore.selectedMember.id}/notes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -504,7 +532,77 @@ const editMemberForm = ref({
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
+  photoUrl: '',
 });
+
+const fileEditInputRef = ref<any>(null);
+const videoEditRef = ref<any>(null);
+const cameraEditActive = ref(false);
+const capturedEditPhoto = ref<string | null>(null);
+let mediaEditStream: MediaStream | null = null;
+
+function triggerEditFileSelect() {
+  if (fileEditInputRef.value) {
+    fileEditInputRef.value.click();
+  }
+}
+
+function onEditFileChange(event: any) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      editMemberForm.value.photoUrl = e.target.result;
+      capturedEditPhoto.value = null;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+async function startEditCamera() {
+  try {
+    cameraEditActive.value = true;
+    capturedEditPhoto.value = null;
+    mediaEditStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    if (videoEditRef.value) {
+      videoEditRef.value.srcObject = mediaEditStream;
+    }
+  } catch (err) {
+    console.error('Error accessing camera', err);
+    alert('No se pudo acceder a la cámara');
+    cameraEditActive.value = false;
+  }
+}
+
+function stopEditCamera() {
+  if (mediaEditStream) {
+    mediaEditStream.getTracks().forEach((track) => track.stop());
+  }
+  cameraEditActive.value = false;
+}
+
+function captureEditSnapshot() {
+  if (videoEditRef.value) {
+    const video = videoEditRef.value;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      capturedEditPhoto.value = dataUrl;
+      editMemberForm.value.photoUrl = dataUrl;
+    }
+    stopEditCamera();
+  }
+}
+
+function removeEditPhoto() {
+  editMemberForm.value.photoUrl = '';
+  capturedEditPhoto.value = null;
+  stopEditCamera();
+}
 
 function openEditMemberModal() {
   if (!memberStore.selectedMember) return;
@@ -524,7 +622,10 @@ function openEditMemberModal() {
     emergencyContactName: m.emergencyContactName || '',
     emergencyContactPhone: m.emergencyContactPhone || '',
     emergencyContactRelationship: m.emergencyContactRelationship || '',
+    photoUrl: m.photoUrl || '',
   };
+  capturedEditPhoto.value = null;
+  cameraEditActive.value = false;
   showEditMemberModal.value = true;
 }
 
@@ -546,6 +647,79 @@ async function handleSaveMember() {
 
 // Modal de asignación/renovación de plan
 const showRenewPlanModal = ref(false);
+// Modal de registrar pago
+const showRegisterPaymentModal = ref(false);
+const paymentForm = ref({
+  membershipId: '',
+  paymentMethodId: '90000000-0000-0000-0000-000000000001',
+  amount: 0,
+  referenceNumber: '',
+});
+
+const memberPendingMemberships = computed(() => {
+  return memberStore.activeMemberships.filter((m: any) => m.status === 'PENDING');
+});
+
+function openRegisterPaymentModal() {
+  paymentForm.value = {
+    membershipId: '',
+    paymentMethodId: '90000000-0000-0000-0000-000000000001',
+    amount: 0,
+    referenceNumber: '',
+  };
+  if (memberPendingMemberships.value.length > 0) {
+    paymentForm.value.membershipId = memberPendingMemberships.value[0].id;
+    const plan = memberStore.plans.find((p: any) => p.id === memberPendingMemberships.value[0].planId);
+    if (plan) {
+      paymentForm.value.amount = plan.price / 100;
+    }
+  }
+  showRegisterPaymentModal.value = true;
+}
+
+function onPaymentPlanChange() {
+  const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
+  const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+  if (plan) {
+    paymentForm.value.amount = plan.price / 100;
+  }
+}
+
+async function handleRegisterPayment() {
+  if (!memberStore.selectedMember) return;
+  if (!paymentForm.value.membershipId) {
+    triggerToast('Debe seleccionar una membresía pendiente.');
+    return;
+  }
+  
+  const payload = {
+    memberId: memberStore.selectedMember.id,
+    membershipId: paymentForm.value.membershipId,
+    paymentMethodId: paymentForm.value.paymentMethodId,
+    amount: paymentForm.value.amount * 100, // a centavos
+    referenceNumber: paymentForm.value.referenceNumber,
+  };
+
+  const created = await memberStore.registerPayment(payload);
+  if (created) {
+    showRegisterPaymentModal.value = false;
+    triggerToast('Pago registrado correctamente.');
+    await memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+    
+    // Auto download receipt
+    try {
+      const selectedMs = memberStore.activeMemberships.find((m: any) => m.id === payload.membershipId);
+      const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+      const planName = plan ? plan.name : 'Plan de Membresía';
+      await downloadPaymentReceipt(created, memberStore.selectedMember, planName, created.beneficiaries);
+    } catch (e) {
+      console.error('Error generating PDF receipt', e);
+    }
+  } else {
+    triggerToast('Error al registrar el pago.');
+  }
+}
+
 const renewPlanForm = ref({
   planId: '',
   startDate: '',
@@ -594,28 +768,44 @@ async function handleRenewPlan() {
   }
 }
 
+function countDaysExcludingSundays(fromStr: string, toStr: string): number {
+  const start = new Date(fromStr);
+  const end = new Date(toStr);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  
+  if (end < start) return 0;
+  
+  let count = 0;
+  const current = new Date(start);
+  while (current <= end) {
+    if (current.getDay() !== 0) { // 0 is Sunday
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
 // Métricas de membresía computadas
 const membershipProgress = computed(() => {
   const activeMs = memberStore.activeMemberships.find(m => m.status === 'ACTIVE');
   if (!activeMs) return null;
   
-  const start = new Date(activeMs.startDate);
-  const end = new Date(activeMs.endDate);
-  const today = new Date();
+  const plan = memberStore.plans.find((p: any) => p.id === activeMs.planId);
+  const totalDays = plan ? plan.durationDays : 30;
   
-  const total = end.getTime() - start.getTime();
-  const elapsed = today.getTime() - start.getTime();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const daysPassed = countDaysExcludingSundays(activeMs.startDate, todayStr);
+  const finalDaysPassed = Math.min(totalDays, daysPassed);
   
-  const totalDays = Math.max(1, Math.ceil(total / (1000 * 60 * 60 * 24)));
-  const remainingDays = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-  
-  const percentage = Math.min(100, Math.max(0, Math.round((remainingDays / totalDays) * 100)));
+  const percentage = Math.min(100, Math.max(0, Math.round((finalDaysPassed / totalDays) * 100)));
   
   return {
     planName: activeMs.planName,
-    endDate: new Date(activeMs.endDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }),
+    endDate: formatDateDDMMYYYY(activeMs.endDate),
     totalDays,
-    remainingDays,
+    daysPassed: finalDaysPassed,
     percentage,
   };
 });
@@ -628,12 +818,12 @@ const paymentSummary = computed(() => {
   let lastPaymentAmount = 0;
   if (paidPayments.length > 0) {
     const sorted = [...paidPayments].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
-    lastPaymentDate = new Date(sorted[0].paymentDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    lastPaymentDate = formatDateDDMMYYYY(sorted[0].paymentDate);
     lastPaymentAmount = sorted[0].amount / 100;
   }
   
   const activeMs = memberStore.activeMemberships.find(m => m.status === 'ACTIVE');
-  const nextDueDate = activeMs ? new Date(activeMs.endDate).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+  const nextDueDate = activeMs ? formatDateDDMMYYYY(activeMs.endDate) : 'N/A';
   
   return {
     totalPaid,
@@ -654,7 +844,7 @@ const attendanceAnalytics = computed(() => {
   let lastVisit = 'Sin visitas';
   if (grantedLogs.length > 0) {
     const sorted = [...grantedLogs].sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
-    lastVisit = new Date(sorted[0].scannedAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+    lastVisit = formatDateTimeDDMMYYYY(sorted[0].scannedAt);
   }
   
   const now = new Date();
@@ -702,7 +892,7 @@ const formattedNotes = computed(() => {
     // Generar fechas relativas a la fecha de registro
     const regDate = new Date(m.registrationDate);
     regDate.setDate(regDate.getDate() + idx);
-    const dateStr = regDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateStr = formatDateDDMMYYYY(regDate);
     const timeStr = '10:30';
     return {
       content: note,
@@ -1020,8 +1210,8 @@ const formattedNotes = computed(() => {
 
                 <div v-if="membershipProgress" class="space-y-2">
                   <div class="flex justify-between text-xs font-mono">
-                    <span class="text-neutral-450">Días restantes:</span>
-                    <span class="text-[#F59E0B] font-bold">{{ membershipProgress.remainingDays }} / {{ membershipProgress.totalDays }}</span>
+                    <span class="text-neutral-450">Días transcurridos:</span>
+                    <span class="text-[#F59E0B] font-bold">{{ membershipProgress.daysPassed }} / {{ membershipProgress.totalDays }}</span>
                   </div>
                   <!-- Barra de progreso -->
                   <div class="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-gray-800/80">
@@ -1328,8 +1518,8 @@ const formattedNotes = computed(() => {
                 <tbody class="divide-y divide-gray-950/40">
                   <tr v-for="ms in memberStore.activeMemberships" :key="ms.id" class="hover:bg-[#121212]/30 transition-colors">
                     <td class="p-3 font-bold text-white">{{ ms.planName }}</td>
-                    <td class="p-3 text-neutral-400 font-mono">{{ ms.startDate }}</td>
-                    <td class="p-3 text-neutral-400 font-mono">{{ ms.endDate }}</td>
+                    <td class="p-3 text-neutral-400 font-mono">{{ formatDateDDMMYYYY(ms.startDate) }}</td>
+                    <td class="p-3 text-neutral-400 font-mono">{{ formatDateDDMMYYYY(ms.endDate) }}</td>
                     <td class="p-3">
                       <span 
                         class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border font-mono"
@@ -1362,7 +1552,18 @@ const formattedNotes = computed(() => {
 
           <!-- PESTAÑA 3: RECIBOS DE PAGO -->
           <div v-if="activeTab === 'payments'" class="saas-card p-6 space-y-4 animate-in fade-in duration-150">
-            <h4 class="saas-title pb-2 border-b border-gray-900/50">Cobros y Facturación Emitida</h4>
+            <div class="flex justify-between items-center pb-2 border-b border-gray-900/50">
+              <h4 class="saas-title">Cobros y Facturación Emitida</h4>
+              <button 
+                @click="openRegisterPaymentModal"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-md transition-all flex items-center space-x-1.5 cursor-pointer font-sans"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>Registrar Pago</span>
+              </button>
+            </div>
             <div class="overflow-x-auto font-sans">
               <table class="w-full text-xs text-left border-collapse">
                 <thead>
@@ -1380,7 +1581,7 @@ const formattedNotes = computed(() => {
                   <tr v-for="pay in memberStore.activePayments" :key="pay.id" class="hover:bg-[#121212]/30 transition-colors">
                     <td class="p-3 font-bold text-[#F59E0B]">{{ pay.referenceNumber }}</td>
                     <td class="p-3 text-neutral-300 font-sans">{{ pay.paymentMethodName }}</td>
-                    <td class="p-3 text-neutral-400">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
+                    <td class="p-3 text-neutral-400">{{ formatDateTimeDDMMYYYY(pay.paymentDate) }}</td>
                     <td class="p-3 text-neutral-300 font-sans">{{ pay.processedByName || 'Cajero' }}</td>
                     <td class="p-3 font-bold text-white">${{ pay.amount / 100 }} MXN</td>
                     <td class="p-3">
@@ -1427,7 +1628,7 @@ const formattedNotes = computed(() => {
                 </thead>
                 <tbody class="divide-y divide-gray-950/40 font-mono">
                   <tr v-for="log in memberActivityLogs" :key="log.id" class="hover:bg-[#121212]/30 transition-colors">
-                    <td class="p-3 text-white">{{ new Date(log.scannedAt).toLocaleString() }}</td>
+                    <td class="p-3 text-white">{{ formatDateTimeDDMMYYYY(log.scannedAt) }}</td>
                     <td class="p-3 text-neutral-400 font-sans">Lector Huella USB</td>
                     <td class="p-3">
                       <span 
@@ -1517,7 +1718,7 @@ const formattedNotes = computed(() => {
                     </div>
                     <div>
                       <h6 class="text-xs font-bold text-white uppercase">{{ doc.summary }}</h6>
-                      <p class="text-[9px] text-neutral-500 font-mono mt-0.5">Subido el: {{ new Date(doc.uploadedAt).toLocaleString() }}</p>
+                      <p class="text-[9px] text-neutral-500 font-mono mt-0.5">Subido el: {{ formatDateTimeDDMMYYYY(doc.uploadedAt) }}</p>
                     </div>
                   </div>
                   
@@ -1649,6 +1850,49 @@ const formattedNotes = computed(() => {
             </div>
           </div>
 
+          <div class="border-t border-gray-900 pt-4">
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Foto de Perfil</label>
+            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+              <div class="w-32 h-32 border border-neutral-900 rounded-xl bg-neutral-950 flex items-center justify-center overflow-hidden relative">
+                <video v-if="cameraEditActive && !capturedEditPhoto" ref="videoEditRef" autoplay playsinline class="w-full h-full object-cover"></video>
+                <img v-else-if="capturedEditPhoto || editMemberForm.photoUrl" :src="capturedEditPhoto || editMemberForm.photoUrl" class="w-full h-full object-cover" />
+                <div v-else class="text-neutral-500 text-[10px] text-center p-2 font-mono">SIN FOTO</div>
+              </div>
+              
+              <div class="flex flex-col space-y-2">
+                <input type="file" ref="fileEditInputRef" accept="image/*" class="hidden" @change="onEditFileChange" />
+                
+                <div class="flex space-x-2">
+                  <button type="button" @click="triggerEditFileSelect" class="px-3 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer border border-gray-800/60">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span>Subir Archivo</span>
+                  </button>
+
+                  <button v-if="editMemberForm.photoUrl" type="button" @click="removeEditPhoto" class="px-3 py-2.5 bg-neutral-900 hover:bg-red-950/40 hover:text-red-500 text-neutral-400 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer border border-gray-800/60">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Quitar Foto</span>
+                  </button>
+                </div>
+
+                <button v-if="!cameraEditActive" type="button" @click="startEditCamera" class="px-3 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer border border-gray-800/60">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 11-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Usar Cámara</span>
+                </button>
+                <div v-else class="flex space-x-2">
+                  <button type="button" @click="captureEditSnapshot" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-md">Tomar Foto</button>
+                  <button type="button" @click="stopEditCamera" class="px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 rounded-xl text-xs font-bold cursor-pointer transition-all border border-gray-800">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end">
             <button 
               type="button" 
@@ -1662,6 +1906,64 @@ const formattedNotes = computed(() => {
               class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
             >
               Guardar Cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE REGISTRO DE PAGO (NUEVO) -->
+    <div v-if="showRegisterPaymentModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+        <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
+          <h4 class="saas-title">Registrar Recibo de Pago</h4>
+          <button @click="showRegisterPaymentModal = false" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
+        </div>
+
+        <form @submit.prevent="handleRegisterPayment" class="space-y-4 text-xs">
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Membresía Pendiente por Pagar</label>
+            <select v-model="paymentForm.membershipId" @change="onPaymentPlanChange" required class="w-full saas-select">
+              <option value="" disabled>Seleccione membresía...</option>
+              <option v-for="m in memberPendingMemberships" :key="m.id" :value="m.id">
+                {{ m.planName }} ({{ formatDateDDMMYYYY(m.startDate) }} al {{ formatDateDDMMYYYY(m.endDate) }})
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Método de Pago</label>
+            <select v-model="paymentForm.paymentMethodId" required class="w-full saas-select">
+              <option value="90000000-0000-0000-0000-000000000001">Efectivo</option>
+              <option value="90000000-0000-0000-0000-000000000002">Tarjeta de Débito</option>
+              <option value="90000000-0000-0000-0000-000000000003">Tarjeta de Crédito</option>
+              <option value="90000000-0000-0000-0000-000000000004">Transferencia Bancaria</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Referencia de Pago (Opcional)</label>
+            <input v-model="paymentForm.referenceNumber" type="text" placeholder="Ej: Depósito, Ref. Bancaria" class="w-full saas-input" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Monto a Cobrar (MXN)</label>
+            <input v-model.number="paymentForm.amount" type="number" required min="0" step="0.01" class="w-full saas-input font-bold font-mono text-emerald-500 text-sm" />
+          </div>
+
+          <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end">
+            <button 
+              type="button" 
+              @click="showRegisterPaymentModal = false"
+              class="bg-neutral-900 hover:bg-neutral-850 text-white py-2 px-4 rounded-xl font-bold transition-all cursor-pointer border border-gray-800"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
+            >
+              Registrar Cobro
             </button>
           </div>
         </form>

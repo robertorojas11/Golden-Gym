@@ -9,6 +9,12 @@ import { RequirePermissions } from '../auth/permissions.decorator';
 export class MembershipsController {
   constructor(private service: MembershipsService) {}
 
+  @Get()
+  @RequirePermissions('manage:access')
+  findAll() {
+    return this.service.findAllMemberships();
+  }
+
   @Get('plans')
   @RequirePermissions('manage:access')
   findAllPlans() {

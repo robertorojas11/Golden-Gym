@@ -12,7 +12,7 @@ const errorMsg = ref('');
 const successMsg = ref('');
 const isLoading = ref(false);
 
-const API_URL = 'http://localhost:3000';
+const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
 const hasMinLength = computed(() => newPassword.value.length >= 8);
 const hasNumber = computed(() => /\d/.test(newPassword.value));
