@@ -7,7 +7,7 @@ const authStore = useAuthStore();
 const syncStore = useSyncStore();
 const staff = ref<any[]>([]);
 
-const API_URL = 'http://localhost:3000';
+const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
 function getHeaders() {
   const token = localStorage.getItem('access_token');

@@ -30,11 +30,36 @@ const recent = ref({
   upcomingExpirations: [] as any[],
 });
 
-const API_URL = 'http://localhost:3000';
+const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
+const allMemberships = ref<any[]>([]);
+
+async function fetchMemberships() {
+  const token = authStore.token;
+  try {
+    const res = await fetch(`${API_URL}/memberships`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (res.ok) {
+      allMemberships.value = await res.json();
+    }
+  } catch (error) {
+    console.error('Error fetching all memberships', error);
+  }
+}
+
+const membersWithPendingPayments = computed(() => {
+  const pendingMemberIds = new Set(
+    allMemberships.value
+      .filter((m) => m.status === 'PENDING')
+      .map((m) => m.memberId)
+  );
+  return memberStore.members.filter((m) => pendingMemberIds.has(m.id));
+});
 
 async function fetchDashboardData() {
   const token = authStore.token;
   try {
+    fetchMemberships();
     const summaryRes = await fetch(`${API_URL}/analytics/summary`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -56,6 +81,7 @@ async function fetchDashboardData() {
 
 onMounted(() => {
   fetchDashboardData();
+  fetchMemberships();
   memberStore.fetchMembers();
   memberStore.fetchPlans();
 });
@@ -302,13 +328,17 @@ async function onPaymentMemberChange() {
     headers: { 'Authorization': `Bearer ${token}` },
   });
   if (res.ok) {
-    memberMemberships.value = await res.json();
+    const raw = await res.json();
+    memberMemberships.value = raw.filter((m: any) => m.status === 'PENDING');
     if (memberMemberships.value.length > 0) {
       paymentForm.value.membershipId = memberMemberships.value[0].id;
       const plan = memberStore.plans.find((p) => p.id === memberMemberships.value[0].planId);
       if (plan) {
         paymentForm.value.amount = plan.price / 100;
       }
+    } else {
+      paymentForm.value.membershipId = '';
+      paymentForm.value.amount = 0;
     }
   }
 }
@@ -893,7 +923,7 @@ function formatNumber(val: number) {
           <div>
             <label class="block text-xs font-semibold text-neutral-500 uppercase mb-2">Seleccionar Miembro</label>
             <select v-model="paymentForm.memberId" @change="onPaymentMemberChange" required class="w-full border rounded-lg px-3 py-2 text-sm">
-              <option v-for="m in memberStore.members" :key="m.id" :value="m.id">{{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})</option>
+              <option v-for="m in membersWithPendingPayments" :key="m.id" :value="m.id">{{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})</option>
             </select>
           </div>
 

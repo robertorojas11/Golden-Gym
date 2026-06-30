@@ -60,6 +60,10 @@ export class PaymentsService {
       throw new NotFoundException('Membership not found');
     }
 
+    if (ms.status !== 'PENDING') {
+      throw new BadRequestException('La membresía ya se encuentra pagada, cancelada o vencida. Solo se pueden cobrar membresías pendientes.');
+    }
+
     // Resolve payment method name
     let methodName = 'Cash';
     if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000002') methodName = 'Debit Card';
