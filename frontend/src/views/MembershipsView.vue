@@ -19,6 +19,8 @@ const planForm = ref({
   durationDays: 30,
   description: '',
   isActive: true,
+  isGroup: false,
+  maxMembers: 2,
 });
 
 function openCreate() {
@@ -30,6 +32,8 @@ function openCreate() {
     durationDays: 30,
     description: '',
     isActive: true,
+    isGroup: false,
+    maxMembers: 2,
   };
   showEditModal.value = true;
 }
@@ -43,6 +47,8 @@ function openEdit(plan: any) {
     durationDays: plan.durationDays,
     description: plan.description || '',
     isActive: plan.isActive !== false,
+    isGroup: plan.isGroup === true,
+    maxMembers: plan.maxMembers || 2,
   };
   showEditModal.value = true;
 }
@@ -102,6 +108,9 @@ async function handleSave() {
             <div class="space-y-1">
               <div class="flex items-center space-x-1.5">
                 <h3 class="text-sm font-bold text-neutral-900 uppercase tracking-wide">{{ plan.name }}</h3>
+                <span v-if="plan.isGroup" class="inline-block px-1.5 py-0.5 bg-emerald-50 text-emerald-650 rounded text-[8px] font-bold uppercase tracking-wide">
+                  Grupal ({{ plan.maxMembers }} pers.)
+                </span>
               </div>
               <span v-if="plan.isActive === false" class="inline-block px-1.5 py-0.5 bg-red-50 text-red-600 rounded text-[8px] font-bold uppercase">
                 Inactivo
@@ -188,7 +197,28 @@ async function handleSave() {
             ></textarea>
           </div>
 
-          <div class="flex items-center space-x-2 py-2">
+          <div class="flex items-center space-x-2 py-2 border-t border-neutral-50 my-1">
+            <input 
+              v-model="planForm.isGroup" 
+              type="checkbox" 
+              id="isGroup" 
+              class="rounded text-black focus:ring-neutral-900 cursor-pointer"
+            />
+            <label for="isGroup" class="font-semibold text-neutral-700 select-none cursor-pointer">Plan Grupal (Dúo, familiar, etc.)</label>
+          </div>
+
+          <div v-if="planForm.isGroup" class="animate-in slide-in-from-top-1 duration-150">
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Número de Personas Permitidas</label>
+            <input 
+              v-model.number="planForm.maxMembers" 
+              type="number" 
+              required
+              min="2"
+              class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900 text-sm"
+            />
+          </div>
+
+          <div class="flex items-center space-x-2 py-2 border-t border-neutral-50">
             <input 
               v-model="planForm.isActive" 
               type="checkbox" 

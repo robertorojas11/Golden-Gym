@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 
-export async function downloadPaymentReceipt(payment: any, member: any, planName: string) {
+export async function downloadPaymentReceipt(payment: any, member: any, planName: string, beneficiaries?: string[]) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -59,49 +59,59 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   
   // Client details
   doc.setFont('Helvetica', 'bold');
-  doc.text('Socio:', 8, 55);
+  doc.text('Socio:', 8, 54);
   doc.setFont('Helvetica', 'normal');
-  doc.text(`${member.firstName} ${member.lastName}`, 8, 60);
-  doc.text(`Folio Socio: ${member.memberNumber || 'N/A'}`, 8, 65);
+  doc.text(`${member.firstName} ${member.lastName}`, 8, 58);
+  doc.text(`Folio Socio: ${member.memberNumber || 'N/A'}`, 8, 62);
+
+  let currentY = 62;
+  if (beneficiaries && beneficiaries.length > 0) {
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Beneficiarios:', 8, 66);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(beneficiaries.join(', '), 8, 70);
+    currentY = 70;
+  }
   
   // Divider
-  doc.line(8, 70, 72, 70);
+  let dividerY = currentY + 4;
+  doc.line(8, dividerY, 72, dividerY);
   
   // Concept Details header
   doc.setFont('Helvetica', 'bold');
-  doc.text('Concepto', 8, 75);
-  doc.text('Total', 72, 75, { align: 'right' });
+  doc.text('Concepto', 8, dividerY + 5);
+  doc.text('Total', 72, dividerY + 5, { align: 'right' });
   
   // Concept Item details
   doc.setFont('Helvetica', 'normal');
-  doc.text(planName || 'Suscripción de Plan', 8, 82);
+  doc.text(planName || 'Suscripción de Plan', 8, dividerY + 11);
   const amountVal = payment.amount / 100;
   const amountStr = `$${amountVal.toFixed(2)} MXN`;
   doc.setFont('Helvetica', 'bold');
-  doc.text(amountStr, 72, 82, { align: 'right' });
+  doc.text(amountStr, 72, dividerY + 11, { align: 'right' });
   
   // Divider
-  doc.line(8, 88, 72, 88);
+  doc.line(8, dividerY + 17, 72, dividerY + 17);
   
   // Payment Info
   doc.setFont('Helvetica', 'normal');
-  doc.text(`Forma de Pago: ${payment.paymentMethodName || 'Efectivo'}`, 8, 94);
-  doc.text('Estado de Transacción: APROBADO', 8, 99);
-  doc.text(`Cajero: ${payment.processedByName || 'Administrador'}`, 8, 104);
+  doc.text(`Forma de Pago: ${payment.paymentMethodName || 'Efectivo'}`, 8, dividerY + 23);
+  doc.text('Estado de Transacción: APROBADO', 8, dividerY + 28);
+  doc.text(`Cajero: ${payment.processedByName || 'Administrador'}`, 8, dividerY + 33);
   
   // Footer
   doc.setDrawColor(210, 210, 210);
-  doc.line(8, 110, 72, 110);
+  doc.line(8, dividerY + 39, 72, dividerY + 39);
   
   doc.setFont('Helvetica', 'oblique');
   doc.setFontSize(7);
   doc.setTextColor(110, 110, 110);
-  doc.text('¡Gracias por su preferencia!', 40, 116, { align: 'center' });
+  doc.text('¡Gracias por su preferencia!', 40, dividerY + 44, { align: 'center' });
   
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(6.5);
-  doc.text('Conserve este ticket para cualquier aclaración.', 40, 121, { align: 'center' });
-  doc.text('Golden Corps Gym - Fuerza, Disciplina y Constancia', 40, 125, { align: 'center' });
+  doc.text('Conserve este ticket para cualquier aclaración.', 40, dividerY + 49, { align: 'center' });
+  doc.text('Golden Corps Gym - Fuerza, Disciplina y Constancia', 40, dividerY + 53, { align: 'center' });
   
   // Download Action
   doc.save(`Recibo_${payment.referenceNumber}.pdf`);

@@ -49,6 +49,8 @@ export interface MembershipPlan {
   durationDays: number;
   description: string;
   isActive: boolean;
+  isGroup?: boolean;
+  maxMembers?: number;
 }
 
 export interface Membership {
@@ -59,6 +61,7 @@ export interface Membership {
   startDate: string;
   endDate: string;
   status: 'PENDING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
+  parentMembershipId?: string;
 }
 
 export interface Payment {
@@ -128,7 +131,13 @@ export class MockDatabase implements OnModuleInit {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         await this.pool.query('SELECT 1');
-        console.log('PostgreSQL connection established successfully.');
+        console.log('PostgreSQL connection established successfully. Running schema upgrades...');
+        
+        // Ensure new group plans columns exist in schema
+        await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT FALSE NOT NULL');
+        await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS max_members INT DEFAULT 1');
+        await this.pool.query('ALTER TABLE memberships ADD COLUMN IF NOT EXISTS parent_membership_id UUID REFERENCES memberships(id) ON DELETE CASCADE');
+
         connected = true;
         break;
       } catch (err) {
@@ -191,6 +200,8 @@ export class MockDatabase implements OnModuleInit {
       durationDays: row.duration_days,
       description: row.description,
       isActive: row.is_active,
+      isGroup: row.is_group || false,
+      maxMembers: row.max_members || 1,
     }));
 
     // 3. Load members
@@ -240,6 +251,7 @@ export class MockDatabase implements OnModuleInit {
         startDate: row.start_date ? row.start_date.toISOString().split('T')[0] : '',
         endDate: row.end_date ? row.end_date.toISOString().split('T')[0] : '',
         status: row.status,
+        parentMembershipId: row.parent_membership_id || undefined,
       };
     });
 
@@ -394,28 +406,31 @@ export class MockDatabase implements OnModuleInit {
 
   async savePlan(plan: MembershipPlan) {
     await this.pool.query(`
-      INSERT INTO membership_plans (id, name, price, duration_days, description, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO membership_plans (id, name, price, duration_days, description, is_active, is_group, max_members)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (id) DO UPDATE SET
         name = $2,
         price = $3,
         duration_days = $4,
         description = $5,
         is_active = $6,
+        is_group = $7,
+        max_members = $8,
         updated_at = CURRENT_TIMESTAMP
-    `, [plan.id, plan.name, plan.price, plan.durationDays, plan.description, plan.isActive]);
+    `, [plan.id, plan.name, plan.price, plan.durationDays, plan.description, plan.isActive, plan.isGroup ?? false, plan.maxMembers ?? 1]);
   }
 
   async saveMembership(membership: Membership) {
     await this.pool.query(`
-      INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status, parent_membership_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (id) DO UPDATE SET
         status = $6,
         start_date = $4,
         end_date = $5,
+        parent_membership_id = $7,
         updated_at = CURRENT_TIMESTAMP
-    `, [membership.id, membership.memberId, membership.planId, membership.startDate || null, membership.endDate || null, membership.status]);
+    `, [membership.id, membership.memberId, membership.planId, membership.startDate || null, membership.endDate || null, membership.status, membership.parentMembershipId || null]);
   }
 
   async savePayment(payment: Payment) {

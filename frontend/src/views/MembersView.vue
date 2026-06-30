@@ -450,7 +450,7 @@ async function downloadReceipt(payment: any) {
   const plan = membership ? memberStore.plans.find((p: any) => p.id === membership.planId) : null;
   const planName = plan ? plan.name : 'Plan de Membresía';
   
-  await downloadPaymentReceipt(payment, memberStore.selectedMember, planName);
+  await downloadPaymentReceipt(payment, memberStore.selectedMember, planName, payment.beneficiaries);
 }
 
 // Modal de edición de membresía (Solo dueños)
@@ -549,25 +549,44 @@ const showRenewPlanModal = ref(false);
 const renewPlanForm = ref({
   planId: '',
   startDate: '',
+  beneficiaryIds: [] as string[],
+});
+
+const selectedPlanDetails = computed(() => {
+  return memberStore.plans.find((p: any) => p.id === renewPlanForm.value.planId);
+});
+
+const numBeneficiariesNeeded = computed(() => {
+  if (!selectedPlanDetails.value?.isGroup) return 0;
+  return (selectedPlanDetails.value.maxMembers || 2) - 1;
+});
+
+const eligibleBeneficiaries = computed(() => {
+  if (!memberStore.selectedMember) return [];
+  return memberStore.members.filter((m: any) => m.id !== memberStore.selectedMember.id && m.isActive !== false);
 });
 
 function openRenewPlanModal() {
   if (!memberStore.selectedMember) return;
   renewPlanForm.value.planId = memberStore.plans[0]?.id || '';
   renewPlanForm.value.startDate = '';
+  renewPlanForm.value.beneficiaryIds = [];
   showRenewPlanModal.value = true;
 }
 
 async function handleRenewPlan() {
   if (!memberStore.selectedMember) return;
+  const additionalIds = renewPlanForm.value.beneficiaryIds.filter(id => !!id);
   const success = await memberStore.assignMembership(
     memberStore.selectedMember.id, 
     renewPlanForm.value.planId,
-    renewPlanForm.value.startDate || undefined
+    renewPlanForm.value.startDate || undefined,
+    additionalIds
   );
   if (success) {
     showRenewPlanModal.value = false;
     renewPlanForm.value.startDate = '';
+    renewPlanForm.value.beneficiaryIds = [];
     triggerToast('Membresía asignada/renovada correctamente.');
     memberStore.fetchMemberDetail(memberStore.selectedMember.id);
   } else {
@@ -1669,6 +1688,23 @@ const formattedNotes = computed(() => {
                 {{ plan.name }} — ${{ plan.price / 100 }} MXN ({{ plan.durationDays }} días)
               </option>
             </select>
+          </div>
+
+          <div v-if="selectedPlanDetails?.isGroup && numBeneficiariesNeeded > 0" class="space-y-3 animate-in slide-in-from-top-1 duration-150 border-t border-gray-900 pt-3">
+            <h5 class="font-bold text-[#10B981] uppercase tracking-wide text-[10px]">Socios Beneficiarios del Plan</h5>
+            <div v-for="index in numBeneficiariesNeeded" :key="index">
+              <label class="block font-semibold text-neutral-400 mb-1">Socio Adicional {{ index }}</label>
+              <select 
+                v-model="renewPlanForm.beneficiaryIds[index - 1]" 
+                required
+                class="w-full saas-select"
+              >
+                <option value="" disabled>Seleccione socio...</option>
+                <option v-for="m in eligibleBeneficiaries" :key="m.id" :value="m.id">
+                  {{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})
+                </option>
+              </select>
+            </div>
           </div>
 
           <div>

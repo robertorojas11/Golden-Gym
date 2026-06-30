@@ -128,7 +128,7 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
-  async function assignMembership(memberId: string, planId: string, startDate?: string) {
+  async function assignMembership(memberId: string, planId: string, startDate?: string, additionalMemberIds?: string[]) {
     try {
       const member = members.value.find(m => m.id === memberId);
       const plan = plans.value.find(p => p.id === planId);
@@ -138,6 +138,9 @@ export const useMemberStore = defineStore('member', () => {
       const payload: any = { memberId, planId };
       if (startDate) {
         payload.startDate = startDate;
+      }
+      if (additionalMemberIds && additionalMemberIds.length > 0) {
+        payload.additionalMemberIds = additionalMemberIds;
       }
       
       const res = await fetch(`${API_URL}/memberships/assign`, {
