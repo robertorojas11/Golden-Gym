@@ -80,26 +80,5 @@ export class PaymentsService {
     return newPayment;
   }
 
-  async refundPayment(id: string): Promise<Payment> {
-    const payment = this.db.payments.find((p) => p.id === id);
-    if (!payment) {
-      throw new NotFoundException('Payment record not found');
-    }
 
-    if (payment.status === 'REFUNDED') {
-      throw new BadRequestException('Payment has already been refunded');
-    }
-
-    payment.status = 'REFUNDED';
-    await this.db.savePayment(payment);
-
-    // Update related membership to CANCELLED
-    const ms = this.db.memberships.find((m) => m.id === payment.membershipId);
-    if (ms) {
-      ms.status = 'CANCELLED';
-      await this.db.saveMembership(ms);
-    }
-
-    return payment;
-  }
 }

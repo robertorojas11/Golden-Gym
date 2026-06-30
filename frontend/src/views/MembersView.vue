@@ -179,7 +179,51 @@ watch(showAddMemberModal, (newVal) => {
   }
 });
 
+function validateMemberForm(form: any): string | null {
+  if (!form.firstName?.trim()) return 'El nombre es obligatorio.';
+  if (!form.lastName?.trim()) return 'El apellido es obligatorio.';
+  if (!form.birthDate) return 'La fecha de nacimiento es obligatoria.';
+  
+  if (!form.phone) {
+    return 'El teléfono es obligatorio.';
+  } else {
+    const cleanPhone = form.phone.replace(/[\s-()]/g, '');
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      return 'El teléfono debe tener exactamente 10 dígitos numéricos.';
+    }
+  }
+
+  if (form.email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      return 'El correo electrónico no tiene un formato válido.';
+    }
+  }
+
+  if (form.postalCode) {
+    const cpRegex = /^\d{5}$/;
+    if (!cpRegex.test(form.postalCode)) {
+      return 'El código postal debe tener exactamente 5 dígitos.';
+    }
+  }
+
+  if (form.emergencyContactPhone) {
+    const cleanEmergencyPhone = form.emergencyContactPhone.replace(/[\s-()]/g, '');
+    if (!/^\d{10}$/.test(cleanEmergencyPhone)) {
+      return 'El teléfono de contacto de emergencia debe tener exactamente 10 dígitos numéricos.';
+    }
+  }
+
+  return null;
+}
+
 async function saveNewMember() {
+  const errorMsg = validateMemberForm(memberForm.value);
+  if (errorMsg) {
+    triggerToast(errorMsg);
+    return;
+  }
+
   const payload = {
     ...memberForm.value,
     notes: memberForm.value.notes ? [memberForm.value.notes] : [],
@@ -263,6 +307,7 @@ async function handleSearch() {
 async function selectMember(id: string) {
   isDetailLoading.value = true;
   await memberStore.fetchMemberDetail(id);
+  await biometricStore.fetchMemberLogs(id);
   activeTab.value = 'overview';
   isDetailLoading.value = false;
 }
@@ -485,6 +530,11 @@ function openEditMemberModal() {
 
 async function handleSaveMember() {
   if (!memberStore.selectedMember) return;
+  const errorMsg = validateMemberForm(editMemberForm.value);
+  if (errorMsg) {
+    triggerToast(errorMsg);
+    return;
+  }
   const success = await memberStore.updateMember(memberStore.selectedMember.id, editMemberForm.value);
   if (success) {
     showEditMemberModal.value = false;
@@ -575,8 +625,7 @@ const paymentSummary = computed(() => {
 });
 
 const memberActivityLogs = computed(() => {
-  if (!memberStore.selectedMember) return [];
-  return biometricStore.logs.filter((log: any) => log.memberId === memberStore.selectedMember.id);
+  return biometricStore.memberLogs;
 });
 
 const attendanceAnalytics = computed(() => {

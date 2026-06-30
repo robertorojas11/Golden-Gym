@@ -23,6 +23,44 @@ export const useBiometricStore = defineStore('biometric', () => {
 
   const API_URL = 'http://localhost:3000'; // Target Docker backend port or local dev
 
+  // BroadcastChannel for cross-tab synchronization (Dual-monitor setup)
+  const channel = typeof window !== 'undefined' ? new BroadcastChannel('goldengym_access_sync') : null;
+
+  if (channel) {
+    channel.onmessage = async (event) => {
+      if (event.data?.type === 'CHECKIN_EVENT') {
+        const data = event.data.data;
+        
+        // Reset local timer if any
+        if (resetTimeoutId) {
+          clearTimeout(resetTimeoutId);
+          resetTimeoutId = null;
+        }
+
+        // Trigger local screen animation matching the broadcasted event
+        isScanning.value = true;
+        scanStep.value = 'scanning';
+        activeResult.value = null;
+
+        // Step 2: Matched transition
+        scanStep.value = 'matched';
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Step 3: Reveal Result (Welcome or Denied)
+        activeResult.value = data;
+        scanStep.value = 'result';
+        isScanning.value = false;
+
+        // Schedule local auto-reset timer
+        resetTimeoutId = setTimeout(() => {
+          resetScannerLocal();
+        }, 40000);
+      } else if (event.data?.type === 'RESET_EVENT') {
+        resetScannerLocal();
+      }
+    };
+  }
+
   async function triggerSimulatedScan(memberId?: string, forceResult?: string) {
     if (isScanning.value) return;
 
@@ -55,6 +93,11 @@ export const useBiometricStore = defineStore('biometric', () => {
       activeResult.value = data;
       scanStep.value = 'result';
       
+      // Broadcast this check-in to other tabs
+      if (channel) {
+        channel.postMessage({ type: 'CHECKIN_EVENT', data });
+      }
+
       // Fetch latest logs
       await fetchLogs();
 
@@ -88,6 +131,31 @@ export const useBiometricStore = defineStore('biometric', () => {
   }
 
   function resetScanner() {
+    resetScannerLocal();
+    if (channel) {
+      channel.postMessage({ type: 'RESET_EVENT' });
+    }
+  }
+
+  const memberLogs = ref<any[]>([]);
+
+  async function fetchMemberLogs(memberId: string) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/biometric/logs?memberId=${memberId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        memberLogs.value = await response.json();
+      }
+    } catch (e) {
+      console.error('Failed to fetch member access logs', e);
+    }
+  }
+
+  function resetScannerLocal() {
     if (resetTimeoutId) {
       clearTimeout(resetTimeoutId);
       resetTimeoutId = null;
@@ -101,8 +169,10 @@ export const useBiometricStore = defineStore('biometric', () => {
     scanStep,
     activeResult,
     logs,
+    memberLogs,
     triggerSimulatedScan,
     fetchLogs,
+    fetchMemberLogs,
     resetScanner,
   };
 });

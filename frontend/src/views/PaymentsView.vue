@@ -98,15 +98,6 @@ function clearFilters() {
   selectedMethod.value = 'ALL';
 }
 
-// Modal state
-const showRefundModal = ref(false);
-const refundingPaymentId = ref<string | null>(null);
-const refundingPaymentRef = ref<string | null>(null);
-const isRefunding = ref(false);
-
-const confirmBtnRef = ref<HTMLElement | null>(null);
-const cancelBtnRef = ref<HTMLElement | null>(null);
-
 // Success toast state
 const toastMessage = ref('');
 const showToast = ref(false);
@@ -119,77 +110,120 @@ function triggerToast(message: string) {
   }, 3500);
 }
 
-function openRefundModal(id: string, reference: string) {
-  refundingPaymentId.value = id;
-  refundingPaymentRef.value = reference;
-  showRefundModal.value = true;
-}
+import { jsPDF } from 'jspdf';
 
-function closeRefundModal() {
-  showRefundModal.value = false;
-  refundingPaymentId.value = null;
-  refundingPaymentRef.value = null;
-}
+async function generateReport() {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'letter'
+  });
 
-watch(showRefundModal, (newVal) => {
-  if (newVal) {
-    window.addEventListener('keydown', handleModalKeys);
-    setTimeout(() => {
-      cancelBtnRef.value?.focus();
-    }, 50);
-  } else {
-    window.removeEventListener('keydown', handleModalKeys);
-  }
-});
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleModalKeys);
-});
-
-function handleModalKeys(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    closeRefundModal();
-  }
-  if (e.key === 'Tab') {
-    const activeEl = document.activeElement;
-    if (e.shiftKey) {
-      if (activeEl === cancelBtnRef.value) {
-        confirmBtnRef.value?.focus();
-        e.preventDefault();
-      }
-    } else {
-      if (activeEl === confirmBtnRef.value) {
-        cancelBtnRef.value?.focus();
-        e.preventDefault();
-      }
-    }
-  }
-}
-
-async function confirmRefund() {
-  if (!refundingPaymentId.value) return;
-  isRefunding.value = true;
+  // Load and Add Logo Image on the left
   try {
-    const token = authStore.token;
-    const res = await fetch(`${API_URL}/payments/${refundingPaymentId.value}/refund`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${token}` },
+    const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.src = '/nobg_logo.png';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load logo'));
     });
-    if (res.ok) {
-      triggerToast(`Reembolso del pago ${refundingPaymentRef.value} procesado correctamente.`);
-      syncStore.registerModification('REEMBOLSO_PAGO', `Reembolso de pago ref: ${refundingPaymentRef.value}`);
-      closeRefundModal();
-      fetchPayments();
-    } else {
-      const err = await res.json();
-      triggerToast(err.message || 'Error al procesar el reembolso.');
-    }
-  } catch (error) {
-    console.error(error);
-    triggerToast('Ocurrió un error inesperado.');
-  } finally {
-    isRefunding.value = false;
+    doc.addImage(logoImg, 'PNG', 14, 12, 18, 18);
+  } catch (err) {
+    console.warn('Could not load logo image for PDF report:', err);
   }
+
+  // Title & Header info
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(250, 47, 42); // Golden Gym Red
+  doc.text('GOLDEN CORPS GYM - REPORTE DE PAGOS', 36, 18);
+
+  doc.setFontSize(8.5);
+  doc.setFont('Helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text('Madero 196, Centro, 76000 Santiago de Querétaro, Qro. • Tel: 446-117-7918', 36, 23);
+
+  const now = new Date().toLocaleString();
+  doc.text(`Fecha del Reporte: ${now}`, 36, 28);
+  
+  let filterStr = `Filtros aplicados: `;
+  const filters: string[] = [];
+  if (searchText.value) filters.push(`Búsqueda: "${searchText.value}"`);
+  if (dateFrom.value) filters.push(`Desde: ${dateFrom.value}`);
+  if (dateTo.value) filters.push(`Hasta: ${dateTo.value}`);
+  if (selectedStatus.value !== 'ALL') filters.push(`Estatus: ${selectedStatus.value}`);
+  if (selectedMethod.value !== 'ALL') filters.push(`Método: ${selectedMethod.value}`);
+  
+  if (filters.length > 0) {
+    filterStr += filters.join(' | ');
+  } else {
+    filterStr += 'Ninguno (Todos los registros)';
+  }
+  doc.text(filterStr, 36, 33);
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.2);
+  doc.line(14, 38, 201, 38);
+
+  // Table Headers
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(50, 50, 50);
+  doc.text('Ref. Transacción', 14, 44);
+  doc.text('Socio', 45, 44);
+  doc.text('Método', 105, 44);
+  doc.text('Fecha', 135, 44);
+  doc.text('Monto', 180, 44, { align: 'right' });
+  doc.text('Estatus', 201, 44, { align: 'right' });
+
+  doc.line(14, 47, 201, 47);
+
+  doc.setFont('Helvetica', 'normal');
+  let y = 54;
+  let totalSum = 0;
+
+  for (const pay of filteredPayments.value) {
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+      doc.setFont('Helvetica', 'bold');
+      doc.text('Ref. Transacción', 14, y);
+      doc.text('Socio', 45, y);
+      doc.text('Método', 105, y);
+      doc.text('Fecha', 135, y);
+      doc.text('Monto', 180, y, { align: 'right' });
+      doc.text('Estatus', 201, y, { align: 'right' });
+      doc.line(14, y + 3, 201, y + 3);
+      doc.setFont('Helvetica', 'normal');
+      y += 9;
+    }
+
+    doc.text(pay.referenceNumber || 'N/A', 14, y);
+    
+    const nameStr = pay.memberName || 'N/A';
+    doc.text(nameStr.substring(0, 30), 45, y);
+
+    doc.text(pay.paymentMethodName || 'N/A', 105, y);
+
+    const payDate = pay.paymentDate ? new Date(pay.paymentDate).toLocaleDateString() : 'N/A';
+    doc.text(payDate, 135, y);
+
+    const amountMXN = pay.amount / 100;
+    if (pay.status === 'PAID') {
+      totalSum += amountMXN;
+    }
+    doc.text(`$${amountMXN.toFixed(2)}`, 180, y, { align: 'right' });
+    doc.text(pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO', 201, y, { align: 'right' });
+
+    y += 7;
+  }
+
+  doc.line(14, y, 201, y);
+  y += 7;
+  doc.setFont('Helvetica', 'bold');
+  doc.text(`Total de registros: ${filteredPayments.value.length}`, 14, y);
+  doc.text(`Ingreso Total Neto: $${totalSum.toFixed(2)} MXN`, 201, y, { align: 'right' });
+
+  doc.save(`Reporte_Pagos_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 </script>
 
@@ -263,10 +297,19 @@ async function confirmRefund() {
         </div>
       </div>
 
-      <div class="flex justify-end pt-1">
+      <div class="flex justify-end pt-1 space-x-6">
+        <button 
+          @click="generateReport"
+          class="text-xs text-[#10B981] hover:text-[#059669] font-bold uppercase tracking-wider flex items-center space-x-1.5 transition-colors cursor-pointer bg-transparent border-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>Generar Reporte (PDF)</span>
+        </button>
         <button 
           @click="clearFilters"
-          class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider flex items-center space-x-1.5 transition-colors"
+          class="text-xs text-[#FA2F2A] hover:text-[#d6201b] font-bold uppercase tracking-wider flex items-center space-x-1.5 transition-colors cursor-pointer bg-transparent border-0"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -288,7 +331,6 @@ async function confirmRefund() {
               <th class="p-3">Procesado por</th>
               <th class="p-3">Monto</th>
               <th class="p-3 text-right">Estatus</th>
-              <th v-if="authStore.hasPermission('manage:payments')" class="p-3 text-right">Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -310,19 +352,9 @@ async function confirmRefund() {
                   {{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}
                 </span>
               </td>
-              <td v-if="authStore.hasPermission('manage:payments')" class="p-3 text-right">
-                <button 
-                  v-if="pay.status === 'PAID'"
-                  @click="openRefundModal(pay.id, pay.referenceNumber)"
-                  class="bg-neutral-100 hover:bg-red-50 hover:text-red-600 text-neutral-600 px-3 py-1 rounded text-[10px] font-bold transition-all border border-neutral-200"
-                >
-                  Reembolsar
-                </button>
-                <span v-else class="text-[10px] text-neutral-400 font-medium italic">N/A</span>
-              </td>
             </tr>
             <tr v-if="filteredPayments.length === 0">
-              <td colspan="8" class="p-12 text-center">
+              <td colspan="7" class="p-12 text-center">
                 <div class="flex flex-col items-center justify-center space-y-4">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
@@ -339,52 +371,6 @@ async function confirmRefund() {
             </tr>
           </tbody>
         </table>
-      </div>
-    </div>
-
-    <!-- MODAL DE CONFIRMACIÓN DE REEMBOLSO -->
-    <div 
-      v-if="showRefundModal" 
-      class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="refund-dialog-title"
-    >
-      <div class="bg-neutral-950 border border-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
-        <div class="space-y-2 text-center md:text-left">
-          <h3 id="refund-dialog-title" class="text-base font-bold text-white uppercase tracking-widest flex items-center justify-center md:justify-start space-x-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span>Procesar Reembolso</span>
-          </h3>
-          <p class="text-sm text-neutral-200 pt-2">
-            ¿Estás seguro de que deseas reembolsar la transacción <strong class="text-white font-mono font-bold">{{ refundingPaymentRef }}</strong>?
-          </p>
-          <p class="text-xs text-neutral-400">
-            Esta acción es destructiva y cancelará la membresía del miembro asociado de inmediato.
-          </p>
-        </div>
-
-        <div class="flex space-x-3 pt-4 border-t border-neutral-900">
-          <button 
-            ref="cancelBtnRef"
-            type="button" 
-            @click="closeRefundModal"
-            class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 py-2.5 rounded-xl font-bold transition-all border border-neutral-800 text-xs"
-          >
-            Cancelar
-          </button>
-          <button 
-            ref="confirmBtnRef"
-            type="button"
-            @click="confirmRefund"
-            :disabled="isRefunding"
-            class="flex-1 bg-red-650 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold shadow-sm transition-all text-xs disabled:opacity-55"
-          >
-            {{ isRefunding ? 'Procesando...' : 'Confirmar Reembolso' }}
-          </button>
-        </div>
       </div>
     </div>
 

@@ -32,9 +32,4 @@ export class PaymentsController {
     });
   }
 
-  @Put(':id/refund')
-  @RequirePermissions('manage:payments')
-  refundPayment(@Param('id') id: string) {
-    return this.service.refundPayment(id);
-  }
 }

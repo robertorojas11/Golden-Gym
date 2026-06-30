@@ -102,7 +102,11 @@ export class BiometricsService {
     };
   }
 
-  getAccessLogs(): AccessLog[] {
-    return this.db.accessLogs;
+  getAccessLogs(memberId?: string): AccessLog[] {
+    if (memberId) {
+      return this.db.accessLogs.filter((log) => log.memberId === memberId);
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    return this.db.accessLogs.filter((log) => log.scannedAt && log.scannedAt.startsWith(todayStr));
   }
 }
