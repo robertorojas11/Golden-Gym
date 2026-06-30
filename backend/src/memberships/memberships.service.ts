@@ -31,8 +31,25 @@ export class MembershipsService {
       throw new NotFoundException('Membership plan not found');
     }
 
-    // Check if there's already an active membership.
-    // If active, renew starts at the end of the active membership.
+    // Check if there is already an active membership.
+    // If active, it cannot be assigned to another different plan.
+    const activePlan = this.db.memberships.find(
+      (m) => m.memberId === memberId && m.status === 'ACTIVE'
+    );
+
+    if (activePlan && activePlan.planId !== planId) {
+      throw new BadRequestException('El miembro ya tiene un plan activo. No se puede asignar un plan diferente.');
+    }
+
+    // Cancel any existing PENDING memberships so they are overwritten
+    const existingPending = this.db.memberships.filter(
+      (m) => m.memberId === memberId && m.status === 'PENDING'
+    );
+    for (const pm of existingPending) {
+      pm.status = 'CANCELLED';
+      await this.db.saveMembership(pm);
+    }
+
     const active = this.findActiveMembership(memberId);
     let startDateStr = customStartDate || new Date().toISOString().split('T')[0];
 
@@ -44,7 +61,19 @@ export class MembershipsService {
 
     const startDate = new Date(startDateStr);
     const endDate = new Date(startDateStr);
-    endDate.setDate(startDate.getDate() + plan.durationDays);
+    
+    // Day counts has to exclude Sundays!
+    let addedDays = 0;
+    while (addedDays < plan.durationDays) {
+      endDate.setDate(endDate.getDate() + 1);
+      if (endDate.getDay() !== 0) { // 0 is Sunday
+        addedDays++;
+      }
+    }
+
+    // If start date is in the past (migration of old users), auto-activate without pending payment
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isPastDate = startDateStr < todayStr;
 
     const newMembership: Membership = {
       id: randomUUID(),
@@ -53,7 +82,7 @@ export class MembershipsService {
       planName: plan.name,
       startDate: startDateStr,
       endDate: endDate.toISOString().split('T')[0],
-      status: 'PENDING', // Initially pending until payment is registered
+      status: isPastDate ? 'ACTIVE' : 'PENDING',
     };
 
     this.db.memberships.push(newMembership);

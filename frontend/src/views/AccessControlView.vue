@@ -293,21 +293,7 @@ onUnmounted(() => {
                 <span>{{ store.isScanning ? 'Verificando...' : 'Registrar Entrada Manual' }}</span>
               </button>
 
-              <div class="border-t border-neutral-900 pt-3 mt-1 space-y-2">
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider font-mono">Simulador de Errores</label>
-                
-                <button 
-                  @click="store.triggerSimulatedScan(undefined, 'denied_unknown')"
-                  :disabled="store.isScanning"
-                  class="w-full text-left px-4 py-3 bg-neutral-900/40 hover:bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-between transition-all group disabled:opacity-40 cursor-pointer"
-                >
-                  <div>
-                    <p class="text-xs font-semibold text-white">Simular Folio Desconocido</p>
-                    <p class="text-[9px] text-neutral-500 font-mono">El registro no existe en el sistema</p>
-                  </div>
-                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500 group-hover:scale-125 transition-all"></span>
-                </button>
-              </div>
+
             </div>
           </div>
 
@@ -317,7 +303,7 @@ onUnmounted(() => {
             <div class="space-y-2.5 text-sm text-neutral-300 font-mono">
               <div class="flex justify-between border-b border-neutral-900 pb-1.5">
                 <span>Lunes - Viernes:</span>
-                <span class="text-[#FA2F2A] font-bold">08:00 - 22:00</span>
+                <span class="text-[#FA2F2A] font-bold">07:00 - 22:00</span>
               </div>
               <div class="flex justify-between border-b border-neutral-900 pb-1.5">
                 <span>Sábado:</span>

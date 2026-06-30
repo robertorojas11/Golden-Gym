@@ -7,19 +7,32 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
     format: [80, 140] // Standard 80mm thermal receipt size
   });
 
-  // Brand Name (centered)
+  // Load and Add Logo Image on the left
+  try {
+    const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.src = '/nobg_logo.png';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load logo'));
+    });
+    doc.addImage(logoImg, 'PNG', 6, 6, 16, 16);
+  } catch (err) {
+    console.warn('Could not load logo image for PDF:', err);
+  }
+
+  // Brand Name (left of header text, right of logo)
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setTextColor(250, 47, 42); // Golden Gym Brand Red
-  doc.text('GOLDEN GYM', 40, 12, { align: 'center' });
+  doc.text('GOLDEN CORPS GYM', 25, 11);
   
-  // Real location store info (centered)
+  // Real location store info (left-aligned next to logo)
   doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(80, 80, 80);
-  doc.text('Madero 196, Centro, 76000', 40, 17, { align: 'center' });
-  doc.text('Santiago de Querétaro, Qro.', 40, 21, { align: 'center' });
-  doc.text('Tel: 446-117-7918', 40, 25, { align: 'center' });
+  doc.text('Madero 196, Centro, 76000', 25, 15);
+  doc.text('Santiago de Querétaro, Qro.', 25, 19);
+  doc.text('Tel: 446-117-7918', 25, 23);
   
   // Divider
   doc.setDrawColor(210, 210, 210);
@@ -88,7 +101,7 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.text('Conserve este ticket para cualquier aclaración.', 40, 121, { align: 'center' });
-  doc.text('Golden Gym - Fuerza y Disciplina', 40, 125, { align: 'center' });
+  doc.text('Golden Corps Gym - Fuerza, Disciplina y Constancia', 40, 125, { align: 'center' });
   
   // Download Action
   doc.save(`Recibo_${payment.referenceNumber}.pdf`);

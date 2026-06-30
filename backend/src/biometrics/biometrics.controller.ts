@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Query } from '@nestjs/common';
 import { BiometricsService } from './biometrics.service';
 import { JwtAuthGuard } from '../auth/auth.module';
 import { RolesGuard } from '../auth/roles.guard';
@@ -16,7 +16,7 @@ export class BiometricsController {
   @Get('logs')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequirePermissions('view:reports')
-  getLogs() {
-    return this.service.getAccessLogs();
+  getLogs(@Query('memberId') memberId?: string) {
+    return this.service.getAccessLogs(memberId);
   }
 }
