@@ -25,7 +25,7 @@ export class MembershipsService {
     );
   }
 
-  async assignPlan(memberId: string, planId: string, customStartDate?: string): Promise<Membership> {
+  async assignPlan(memberId: string, planId: string, customStartDate?: string, additionalMemberIds?: string[]): Promise<Membership> {
     const plan = this.db.plans.find((p) => p.id === planId);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
@@ -38,16 +38,43 @@ export class MembershipsService {
     );
 
     if (activePlan && activePlan.planId !== planId) {
-      throw new BadRequestException('El miembro ya tiene un plan activo. No se puede asignar un plan diferente.');
+      throw new BadRequestException('El miembro principal ya tiene un plan activo. No se puede asignar un plan diferente.');
     }
 
-    // Cancel any existing PENDING memberships so they are overwritten
+    // Check additional members active plans
+    if (additionalMemberIds && additionalMemberIds.length > 0) {
+      for (const addId of additionalMemberIds) {
+        const activeAdd = this.db.memberships.find(
+          (m) => m.memberId === addId && m.status === 'ACTIVE'
+        );
+        if (activeAdd && activeAdd.planId !== planId) {
+          const addMember = this.db.members.find(m => m.id === addId);
+          const addName = addMember ? `${addMember.firstName} ${addMember.lastName}` : addId;
+          throw new BadRequestException(`El miembro adicional ${addName} ya tiene un plan activo. No se puede vincular a un plan diferente.`);
+        }
+      }
+    }
+
+    // Cancel any existing PENDING memberships for the main member so they are overwritten
     const existingPending = this.db.memberships.filter(
       (m) => m.memberId === memberId && m.status === 'PENDING'
     );
     for (const pm of existingPending) {
       pm.status = 'CANCELLED';
       await this.db.saveMembership(pm);
+    }
+
+    // Cancel any existing PENDING memberships for additional members
+    if (additionalMemberIds && additionalMemberIds.length > 0) {
+      for (const addId of additionalMemberIds) {
+        const existingPendingAdd = this.db.memberships.filter(
+          (m) => m.memberId === addId && m.status === 'PENDING'
+        );
+        for (const pm of existingPendingAdd) {
+          pm.status = 'CANCELLED';
+          await this.db.saveMembership(pm);
+        }
+      }
     }
 
     const active = this.findActiveMembership(memberId);
@@ -87,6 +114,27 @@ export class MembershipsService {
 
     this.db.memberships.push(newMembership);
     await this.db.saveMembership(newMembership);
+
+    // Save child memberships if it's a group plan
+    if (plan.isGroup && additionalMemberIds && additionalMemberIds.length > 0) {
+      const limit = (plan.maxMembers || 1) - 1;
+      const selectedAddIds = additionalMemberIds.slice(0, limit);
+      for (const addId of selectedAddIds) {
+        const childMs: Membership = {
+          id: randomUUID(),
+          memberId: addId,
+          planId,
+          planName: plan.name,
+          startDate: startDateStr,
+          endDate: newMembership.endDate,
+          status: newMembership.status,
+          parentMembershipId: newMembership.id,
+        };
+        this.db.memberships.push(childMs);
+        await this.db.saveMembership(childMs);
+      }
+    }
+
     return newMembership;
   }
 
@@ -118,6 +166,8 @@ export class MembershipsService {
       durationDays: planData.durationDays || 30,
       description: planData.description || '',
       isActive: planData.isActive !== false,
+      isGroup: planData.isGroup === true,
+      maxMembers: planData.maxMembers || 1,
     };
     this.db.plans.push(newPlan);
     await this.db.savePlan(newPlan);
@@ -134,6 +184,8 @@ export class MembershipsService {
     if (updateData.durationDays !== undefined) plan.durationDays = updateData.durationDays;
     if (updateData.description !== undefined) plan.description = updateData.description;
     if (updateData.isActive !== undefined) plan.isActive = updateData.isActive;
+    if (updateData.isGroup !== undefined) plan.isGroup = updateData.isGroup;
+    if (updateData.maxMembers !== undefined) plan.maxMembers = updateData.maxMembers;
     await this.db.savePlan(plan);
     return plan;
   }

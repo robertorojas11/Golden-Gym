@@ -10,11 +10,17 @@ export class PaymentsService {
     return this.db.payments.map((p) => {
       const user = this.db.users.find((u) => u.id === p.processedBy);
       const member = this.db.members.find((m) => m.id === p.memberId);
+      const children = this.db.memberships.filter((m) => m.parentMembershipId === p.membershipId);
+      const beneficiaries = children.map((c) => {
+        const m = this.db.members.find((mem) => mem.id === c.memberId);
+        return m ? `${m.firstName} ${m.lastName}` : 'Desconocido';
+      });
       return {
         ...p,
         processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
         memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
         memberNumber: member ? member.memberNumber : 'N/A',
+        beneficiaries,
       };
     });
   }
@@ -25,11 +31,17 @@ export class PaymentsService {
       .map((p) => {
         const user = this.db.users.find((u) => u.id === p.processedBy);
         const member = this.db.members.find((m) => m.id === p.memberId);
+        const children = this.db.memberships.filter((m) => m.parentMembershipId === p.membershipId);
+        const beneficiaries = children.map((c) => {
+          const m = this.db.members.find((mem) => mem.id === c.memberId);
+          return m ? `${m.firstName} ${m.lastName}` : 'Desconocido';
+        });
         return {
           ...p,
           processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
           memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
           memberNumber: member ? member.memberNumber : 'N/A',
+          beneficiaries,
         };
       });
   }
@@ -76,6 +88,13 @@ export class PaymentsService {
     // Update membership status to ACTIVE
     ms.status = 'ACTIVE';
     await this.db.saveMembership(ms);
+
+    // Activate all child memberships under this parent membership
+    const children = this.db.memberships.filter((m) => m.parentMembershipId === ms.id);
+    for (const child of children) {
+      child.status = 'ACTIVE';
+      await this.db.saveMembership(child);
+    }
 
     return newPayment;
   }

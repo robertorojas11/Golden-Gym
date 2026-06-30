@@ -23,8 +23,8 @@ export class MembershipsController {
 
   @Post('assign')
   @RequirePermissions('manage:memberships')
-  assignPlan(@Body() body: { memberId: string; planId: string; startDate?: string }) {
-    return this.service.assignPlan(body.memberId, body.planId, body.startDate);
+  assignPlan(@Body() body: { memberId: string; planId: string; startDate?: string; additionalMemberIds?: string[] }) {
+    return this.service.assignPlan(body.memberId, body.planId, body.startDate, body.additionalMemberIds);
   }
 
   @Post('plans')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useMemberStore } from '../stores/member.store';
@@ -233,13 +233,30 @@ const assignForm = ref({
   memberId: '',
   planId: '',
   startDate: '',
+  beneficiaryIds: [] as string[],
+});
+
+const dashboardSelectedPlanDetails = computed(() => {
+  return memberStore.plans.find((p: any) => p.id === assignForm.value.planId);
+});
+
+const dashboardNumBeneficiariesNeeded = computed(() => {
+  if (!dashboardSelectedPlanDetails.value?.isGroup) return 0;
+  return (dashboardSelectedPlanDetails.value.maxMembers || 2) - 1;
+});
+
+const dashboardEligibleBeneficiaries = computed(() => {
+  if (!assignForm.value.memberId) return [];
+  return memberStore.members.filter((m: any) => m.id !== assignForm.value.memberId && m.isActive !== false);
 });
 
 async function submitAssignPlan() {
+  const additionalIds = assignForm.value.beneficiaryIds.filter(id => !!id);
   const created = await memberStore.assignMembership(
     assignForm.value.memberId, 
     assignForm.value.planId, 
-    assignForm.value.startDate || undefined
+    assignForm.value.startDate || undefined,
+    additionalIds
   );
   if (created) {
     showAssignPlan.value = false;
@@ -247,6 +264,7 @@ async function submitAssignPlan() {
       memberId: '',
       planId: '',
       startDate: '',
+      beneficiaryIds: [],
     };
     fetchDashboardData();
   }
@@ -309,7 +327,7 @@ async function submitRegisterPayment() {
       const plan = membership ? memberStore.plans.find((p) => p.id === membership.planId) : null;
       const planName = plan ? plan.name : 'Plan de Membresía';
       
-      await downloadPaymentReceipt(createdPayment, member, planName);
+      await downloadPaymentReceipt(createdPayment, member, planName, createdPayment.beneficiaries);
     } catch (e) {
       console.error('Error generating PDF receipt', e);
     }
@@ -834,6 +852,23 @@ function formatNumber(val: number) {
             <select v-model="assignForm.planId" required class="w-full border rounded-lg px-3 py-2 text-sm">
               <option v-for="p in memberStore.plans" :key="p.id" :value="p.id">{{ p.name }} - ${{ p.price / 100 }} MXN ({{ p.durationDays }} días)</option>
             </select>
+          </div>
+
+          <div v-if="dashboardSelectedPlanDetails?.isGroup && dashboardNumBeneficiariesNeeded > 0" class="space-y-3 animate-in slide-in-from-top-1 duration-150 border-t border-neutral-100 pt-3">
+            <h5 class="font-bold text-emerald-600 uppercase tracking-wide text-[10px]">Socios Beneficiarios del Plan</h5>
+            <div v-for="index in dashboardNumBeneficiariesNeeded" :key="index">
+              <label class="block text-xs font-semibold text-neutral-500 mb-1">Socio Adicional {{ index }}</label>
+              <select 
+                v-model="assignForm.beneficiaryIds[index - 1]" 
+                required
+                class="w-full border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="" disabled>Seleccione socio...</option>
+                <option v-for="m in dashboardEligibleBeneficiaries" :key="m.id" :value="m.id">
+                  {{ m.firstName }} {{ m.lastName }} ({{ m.memberNumber }})
+                </option>
+              </select>
+            </div>
           </div>
 
           <div>
