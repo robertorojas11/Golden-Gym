@@ -429,12 +429,12 @@ onUnmounted(() => {
     <!-- MODAL AGREGAR / EDITAR PERSONAL -->
     <div 
       v-if="showAddEditModal" 
-      class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start"
       role="dialog"
       aria-modal="true"
       aria-labelledby="staff-dialog-title"
     >
-      <div class="bg-neutral-950 border border-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="bg-neutral-950 border border-neutral-900 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 my-8">
         <div class="flex justify-between items-center pb-2 border-b border-neutral-900">
           <h3 id="staff-dialog-title" class="text-sm font-bold text-white uppercase tracking-widest">
             {{ isEditing ? 'Editar Personal' : 'Agregar Nuevo Personal' }}
@@ -443,7 +443,7 @@ onUnmounted(() => {
         </div>
 
         <form @submit.prevent="saveStaff" class="space-y-4 text-xs">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block font-bold text-neutral-400 uppercase mb-1">Nombre</label>
               <input v-model="staffForm.firstName" type="text" required class="w-full border rounded-lg px-3 py-2 focus:outline-neutral-900" />
