@@ -38,7 +38,7 @@ export class BiometricsService {
         // Validar estatus de membresía activa
         const today = new Date().toISOString().split('T')[0];
         const activeMembership = this.db.memberships.find(
-          (m) => m.memberId === member!.id && m.status === 'ACTIVE',
+          (m) => m.memberId === member!.id && m.status === 'ACTIVE' && m.endDate >= today,
         );
 
         if (body.forceResult === 'denied_expired') {
@@ -108,5 +108,21 @@ export class BiometricsService {
     }
     const todayStr = new Date().toISOString().split('T')[0];
     return this.db.accessLogs.filter((log) => log.scannedAt && log.scannedAt.startsWith(todayStr));
+  }
+
+  async registerFingerprint(memberId: string, fingerIndex: number, templateData: string) {
+    return this.db.saveFingerprint({ memberId, fingerIndex, templateData });
+  }
+
+  async deleteFingerprint(memberId: string, fingerIndex: number) {
+    return this.db.deleteFingerprint(memberId, fingerIndex);
+  }
+
+  getMemberFingerprints(memberId: string) {
+    return this.db.fingerprints.filter((f) => f.memberId === memberId);
+  }
+
+  getAllFingerprints() {
+    return this.db.fingerprints;
   }
 }

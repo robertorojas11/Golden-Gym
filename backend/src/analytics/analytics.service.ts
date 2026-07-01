@@ -112,8 +112,10 @@ export class AnalyticsService {
       };
     });
 
+    const today = new Date().toISOString().split('T')[0];
     const upcomingExpirations = this.db.memberships
-      .filter((m) => m.status === 'ACTIVE')
+      .filter((m) => m.status === 'ACTIVE' && m.endDate >= today)
+      .sort((a, b) => a.endDate.localeCompare(b.endDate))
       .slice(0, 5)
       .map((m) => {
         const member = this.db.members.find((mem) => mem.id === m.memberId);

@@ -44,7 +44,7 @@ const isLoading = ref(false);
 const isDetailLoading = ref(false);
 
 const searchQuery = ref('');
-const activeTab = ref<'overview' | 'memberships' | 'payments' | 'activity' | 'documents'>('overview');
+const activeTab = ref<'overview' | 'memberships' | 'payments' | 'activity' | 'documents' | 'biometrics'>('overview');
 
 // Document upload states
 const documentSummary = ref('');
@@ -142,6 +142,7 @@ const memberForm = ref({
   emergencyContactRelationship: '',
   notes: '',
   photoUrl: '',
+  noPaymentRequired: false,
 });
 
 function triggerFileSelect() {
@@ -277,6 +278,7 @@ async function saveNewMember() {
       emergencyContactRelationship: '',
       notes: '',
       photoUrl: '',
+      noPaymentRequired: false,
     };
     capturedPhoto.value = null;
     triggerToast('Miembro registrado correctamente');
@@ -336,6 +338,7 @@ async function selectMember(id: string) {
   isDetailLoading.value = true;
   await memberStore.fetchMemberDetail(id);
   await biometricStore.fetchMemberLogs(id);
+  await biometricStore.fetchMemberFingerprints(id);
   activeTab.value = 'overview';
   isDetailLoading.value = false;
 }
@@ -533,6 +536,7 @@ const editMemberForm = ref({
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
   photoUrl: '',
+  noPaymentRequired: false,
 });
 
 const fileEditInputRef = ref<any>(null);
@@ -623,6 +627,7 @@ function openEditMemberModal() {
     emergencyContactPhone: m.emergencyContactPhone || '',
     emergencyContactRelationship: m.emergencyContactRelationship || '',
     photoUrl: m.photoUrl || '',
+    noPaymentRequired: m.noPaymentRequired || false,
   };
   capturedEditPhoto.value = null;
   cameraEditActive.value = false;
@@ -647,6 +652,177 @@ async function handleSaveMember() {
 
 // Modal de asignación/renovación de plan
 const showRenewPlanModal = ref(false);
+// Pestaña Biométrica
+const showEnrollModal = ref(false);
+const enrollFingerIndex = ref(1); // Dedos estándar
+const enrollStep = ref<'waiting_agent' | 'ready' | 'step_1' | 'step_2' | 'step_3' | 'success' | 'error'>('waiting_agent');
+const enrollErrorMsg = ref('');
+const isSimulatedEnroll = ref(false);
+
+let enrollWS: WebSocket | null = null;
+
+const leftHandFingers = [
+  { index: 4, name: 'Pulgar Izquierdo' },
+  { index: 3, name: 'Índice Izquierdo' },
+  { index: 2, name: 'Medio Izquierdo' },
+  { index: 1, name: 'Anular Izquierdo' },
+  { index: 0, name: 'Meñique Izquierdo' }
+];
+
+const rightHandFingers = [
+  { index: 5, name: 'Pulgar Derecho' },
+  { index: 6, name: 'Índice Derecho' },
+  { index: 7, name: 'Medio Derecho' },
+  { index: 8, name: 'Anular Derecho' },
+  { index: 9, name: 'Meñique Derecho' }
+];
+
+const fingerNames: Record<number, string> = {
+  0: 'Meñique Izquierdo',
+  1: 'Anular Izquierdo',
+  2: 'Medio Izquierdo',
+  3: 'Índice Izquierdo',
+  4: 'Pulgar Izquierdo',
+  5: 'Pulgar Derecho',
+  6: 'Índice Derecho',
+  7: 'Medio Derecho',
+  8: 'Anular Derecho',
+  9: 'Meñique Derecho'
+};
+
+function isFingerEnrolled(idx: number) {
+  return biometricStore.enrolledFingerprints.some((f: any) => f.fingerIndex === idx);
+}
+
+function getFingerEnrollmentDate(idx: number) {
+  const fp = biometricStore.enrolledFingerprints.find((f: any) => f.fingerIndex === idx);
+  return fp ? formatDateDDMMYYYY(fp.createdAt) : '';
+}
+
+function openEnrollFinger(idx: number) {
+  enrollFingerIndex.value = idx;
+  enrollStep.value = 'waiting_agent';
+  enrollErrorMsg.value = '';
+  showEnrollModal.value = true;
+  isSimulatedEnroll.value = false;
+  
+  connectToEnrollAgent();
+}
+
+function connectToEnrollAgent() {
+  if (enrollWS) {
+    enrollWS.close();
+  }
+
+  enrollWS = new WebSocket('ws://localhost:9000');
+
+  enrollWS.onopen = () => {
+    enrollStep.value = 'ready';
+    enrollWS?.send(JSON.stringify({ 
+      action: 'enroll', 
+      memberId: memberStore.selectedMember?.id, 
+      fingerIndex: enrollFingerIndex.value 
+    }));
+  };
+
+  enrollWS.onmessage = async (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.status === 'scanning') {
+        if (data.count === 1) enrollStep.value = 'step_1';
+        if (data.count === 2) enrollStep.value = 'step_2';
+        if (data.count === 3) enrollStep.value = 'step_3';
+      } else if (data.status === 'success') {
+        enrollStep.value = 'success';
+        if (memberStore.selectedMember) {
+          const ok = await biometricStore.saveFingerprint(
+            memberStore.selectedMember.id, 
+            enrollFingerIndex.value, 
+            data.template
+          );
+          if (ok) {
+            triggerToast('Huella registrada correctamente.');
+            if (enrollWS && enrollWS.readyState === WebSocket.OPEN) {
+              enrollWS.send(JSON.stringify({ action: 'sync' }));
+            }
+            biometricStore.sendSyncToAgent();
+            setTimeout(() => {
+              closeEnrollWS();
+            }, 600);
+          } else {
+            enrollStep.value = 'error';
+            enrollErrorMsg.value = 'No se pudo guardar la huella en el servidor.';
+            closeEnrollWS();
+          }
+        }
+      } else if (data.status === 'error') {
+        enrollStep.value = 'error';
+        enrollErrorMsg.value = data.message || 'Error durante el escaneo.';
+        closeEnrollWS();
+      }
+    } catch (e) {
+      console.error('Error parsing agent message', e);
+    }
+  };
+
+  enrollWS.onerror = () => {
+    // Si falla el lector local, queda en 'waiting_agent' para que puedan probar vía simulación
+  };
+
+  enrollWS.onclose = () => {
+    enrollWS = null;
+  };
+}
+
+function closeEnrollWS() {
+  if (enrollWS) {
+    enrollWS.close();
+    enrollWS = null;
+  }
+}
+
+function closeEnrollModal() {
+  closeEnrollWS();
+  showEnrollModal.value = false;
+}
+
+async function triggerSimulatedEnrollment() {
+  if (!memberStore.selectedMember) return;
+  isSimulatedEnroll.value = true;
+  enrollStep.value = 'step_1';
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  enrollStep.value = 'step_2';
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  enrollStep.value = 'step_3';
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  enrollStep.value = 'success';
+  
+  const dummyTemplate = 'ZKTECO_DUMMY_TEMPLATE_' + Math.random().toString(36).substring(2);
+  const ok = await biometricStore.saveFingerprint(
+    memberStore.selectedMember.id, 
+    enrollFingerIndex.value, 
+    dummyTemplate
+  );
+  if (ok) {
+    triggerToast('Huella simulada guardada correctamente.');
+  } else {
+    enrollStep.value = 'error';
+    enrollErrorMsg.value = 'Error al guardar la huella simulada.';
+  }
+}
+
+async function deleteFingerprint(idx: number) {
+  if (!memberStore.selectedMember) return;
+  if (confirm(`¿Está seguro de eliminar la huella del dedo: ${fingerNames[idx]}?`)) {
+    const ok = await biometricStore.deleteFingerprint(memberStore.selectedMember.id, idx);
+    if (ok) {
+      triggerToast('Huella eliminada correctamente.');
+    } else {
+      triggerToast('Error al eliminar la huella.');
+    }
+  }
+}
+
 // Modal de registrar pago
 const showRegisterPaymentModal = ref(false);
 const paymentForm = ref({
@@ -796,7 +972,12 @@ const membershipProgress = computed(() => {
   const totalDays = plan ? plan.durationDays : 30;
   
   const todayStr = new Date().toISOString().split('T')[0];
-  const daysPassed = countDaysExcludingSundays(activeMs.startDate, todayStr);
+  const start = new Date(activeMs.startDate);
+  const end = new Date(todayStr);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const diffTime = Math.max(0, end.getTime() - start.getTime());
+  const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   const finalDaysPassed = Math.min(totalDays, daysPassed);
   
   const percentage = Math.min(100, Math.max(0, Math.round((finalDaysPassed / totalDays) * 100)));
@@ -1146,7 +1327,7 @@ const formattedNotes = computed(() => {
           </div>
 
           <!-- Navegación de Píldoras Modernas -->
-          <div class="flex bg-[#0A0A0A] border border-gray-900 p-1.5 rounded-xl text-xs font-bold text-neutral-400 space-x-2 shadow-md max-w-lg">
+          <div class="flex bg-[#0A0A0A] border border-gray-900 p-1.5 rounded-xl text-xs font-bold text-neutral-400 space-x-2 shadow-md max-w-2xl">
             <button 
               @click="activeTab = 'overview'"
               class="flex-1 py-2 rounded-lg text-center transition-all cursor-pointer text-[10px] uppercase tracking-wider font-mono"
@@ -1174,6 +1355,13 @@ const formattedNotes = computed(() => {
               :class="activeTab === 'activity' ? 'bg-[#121212] text-white border border-gray-850 shadow-inner' : 'hover:text-white hover:bg-[#121212]/30'"
             >
               Registro de Accesos
+            </button>
+            <button 
+              @click="activeTab = 'biometrics'"
+              class="flex-1 py-2 rounded-lg text-center transition-all cursor-pointer text-[10px] uppercase tracking-wider font-mono"
+              :class="activeTab === 'biometrics' ? 'bg-[#121212] text-white border border-gray-850 shadow-inner' : 'hover:text-white hover:bg-[#121212]/30'"
+            >
+              Biometría / Huellas
             </button>
             <button 
               @click="activeTab = 'documents'"
@@ -1754,6 +1942,130 @@ const formattedNotes = computed(() => {
             </div>
           </div>
 
+          <!-- PESTAÑA 6: BIOMETRÍA / HUELLAS -->
+          <div v-if="activeTab === 'biometrics'" class="saas-card p-6 space-y-6 animate-in fade-in duration-150">
+            <div class="flex justify-between items-center border-b border-gray-900 pb-3">
+              <div>
+                <h4 class="saas-title">Expediente de Biometría dactilar</h4>
+                <p class="text-[10px] text-neutral-500 font-mono mt-0.5">Estándar ISO/IEC 19794-2 • Agente local: ws://localhost:9000</p>
+              </div>
+              <span class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 font-mono text-[9px] uppercase tracking-wider font-bold">
+                Lector Activo
+              </span>
+            </div>
+
+            <!-- List of fingers standard (0-9) represented as left/right hands side by side -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <!-- Mano Izquierda (Left Hand) -->
+              <div class="space-y-3.5">
+                <div class="border-b border-gray-900 pb-2 flex justify-between items-center px-1">
+                  <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Mano Izquierda</span>
+                  <span class="text-[9px] font-mono text-neutral-500">Pulgar → Meñique</span>
+                </div>
+                
+                <div class="space-y-3">
+                  <div 
+                    v-for="finger in leftHandFingers" 
+                    :key="finger.index" 
+                    class="p-4 bg-[#0A0A0A] border rounded-xl flex items-center justify-between transition-all hover:border-gray-800"
+                    :class="isFingerEnrolled(finger.index) ? 'border-emerald-900/40' : 'border-gray-900'"
+                  >
+                    <div class="flex items-center space-x-3.5">
+                      <div 
+                        class="w-8 h-8 rounded-lg flex items-center justify-center border font-mono text-xs font-bold"
+                        :class="isFingerEnrolled(finger.index) ? 'bg-emerald-950/20 border-emerald-900 text-emerald-400' : 'bg-neutral-900 border-gray-850 text-neutral-500'"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a13.917 13.917 0 00-2.338-7.794M21 12c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09a13.916 13.916 0 002.002-7.643 13.916 13.916 0 00-2.338-7.794M12 11c0-1.11-.274-2.158-.758-3.08a9.96 9.96 0 011.516-3.896M12 11c0 1.11-.274 2.158-.758 3.08M12 3a9.96 9.96 0 00-3.243.539M9 21a9.96 9.96 0 003.243-.539M9 21c-1.11 0-2.158-.274-3.08-.758M9 21a9.96 9.96 0 003.243-.539M9 3a9.96 9.96 0 013.08.758M6.079 5.243A9.967 9.967 0 019 4.08M6.079 18.757A9.967 9.967 0 019 19.92" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h6 class="text-xs font-bold text-white">{{ finger.name }}</h6>
+                        <p class="text-[9px] font-mono text-neutral-500 mt-0.5">
+                          {{ isFingerEnrolled(finger.index) ? `Registrada: ${getFingerEnrollmentDate(finger.index)}` : 'Sin registrar' }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                      <button 
+                        v-if="!isFingerEnrolled(finger.index) && authStore.hasPermission('manage:memberships')"
+                        @click="openEnrollFinger(finger.index)"
+                        class="px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer border border-gray-850 font-mono"
+                      >
+                        Enrolar
+                      </button>
+                      <button 
+                        v-if="isFingerEnrolled(finger.index) && authStore.hasPermission('manage:memberships')"
+                        @click="deleteFingerprint(finger.index)"
+                        class="p-2 bg-neutral-900 hover:bg-red-950/40 border border-transparent hover:border-red-900/40 rounded-lg text-neutral-450 hover:text-[#FA2F2A] transition-all cursor-pointer"
+                        title="Eliminar huella"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mano Derecha (Right Hand) -->
+              <div class="space-y-3.5">
+                <div class="border-b border-gray-900 pb-2 flex justify-between items-center px-1">
+                  <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Mano Derecha</span>
+                  <span class="text-[9px] font-mono text-neutral-500">Pulgar → Meñique</span>
+                </div>
+                
+                <div class="space-y-3">
+                  <div 
+                    v-for="finger in rightHandFingers" 
+                    :key="finger.index" 
+                    class="p-4 bg-[#0A0A0A] border rounded-xl flex items-center justify-between transition-all hover:border-gray-800"
+                    :class="isFingerEnrolled(finger.index) ? 'border-emerald-900/40' : 'border-gray-900'"
+                  >
+                    <div class="flex items-center space-x-3.5">
+                      <div 
+                        class="w-8 h-8 rounded-lg flex items-center justify-center border font-mono text-xs font-bold"
+                        :class="isFingerEnrolled(finger.index) ? 'bg-emerald-950/20 border-emerald-900 text-emerald-400' : 'bg-neutral-900 border-gray-850 text-neutral-500'"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a13.917 13.917 0 00-2.338-7.794M21 12c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09a13.916 13.916 0 002.002-7.643 13.916 13.916 0 00-2.338-7.794M12 11c0-1.11-.274-2.158-.758-3.08a9.96 9.96 0 011.516-3.896M12 11c0 1.11-.274 2.158-.758 3.08M12 3a9.96 9.96 0 00-3.243.539M9 21a9.96 9.96 0 003.243-.539M9 21c-1.11 0-2.158-.274-3.08-.758M9 21a9.96 9.96 0 003.243-.539M9 3a9.96 9.96 0 013.08.758M6.079 5.243A9.967 9.967 0 019 4.08M6.079 18.757A9.967 9.967 0 019 19.92" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h6 class="text-xs font-bold text-white">{{ finger.name }}</h6>
+                        <p class="text-[9px] font-mono text-neutral-500 mt-0.5">
+                          {{ isFingerEnrolled(finger.index) ? `Registrada: ${getFingerEnrollmentDate(finger.index)}` : 'Sin registrar' }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                      <button 
+                        v-if="!isFingerEnrolled(finger.index) && authStore.hasPermission('manage:memberships')"
+                        @click="openEnrollFinger(finger.index)"
+                        class="px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 hover:text-white rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer border border-gray-850 font-mono"
+                      >
+                        Enrolar
+                      </button>
+                      <button 
+                        v-if="isFingerEnrolled(finger.index) && authStore.hasPermission('manage:memberships')"
+                        @click="deleteFingerprint(finger.index)"
+                        class="p-2 bg-neutral-900 hover:bg-red-950/40 border border-transparent hover:border-red-900/40 rounded-lg text-neutral-450 hover:text-[#FA2F2A] transition-all cursor-pointer"
+                        title="Eliminar huella"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Sin miembro seleccionado (Vacío) -->
@@ -1891,6 +2203,18 @@ const formattedNotes = computed(() => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Owner only: no payment required toggle -->
+          <div v-if="authStore.userRole === 'owner'" class="border-t border-gray-900 pt-4 flex items-center justify-between">
+            <div>
+              <label class="block font-bold text-neutral-300 uppercase tracking-wider text-[10px]">No requiere pago</label>
+              <p class="text-[9px] text-neutral-500">Activa automáticamente las nuevas membresías sin requerir un pago registrado.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer select-none">
+              <input v-model="editMemberForm.noPaymentRequired" type="checkbox" class="sr-only peer" />
+              <div class="w-11 h-6 bg-neutral-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-500 peer-checked:after:bg-[#F59E0B] after:border-gray-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F59E0B]/20 border border-gray-800"></div>
+            </label>
           </div>
 
           <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end">
@@ -2268,11 +2592,147 @@ const formattedNotes = computed(() => {
             </div>
           </div>
 
+          <!-- Owner only: no payment required toggle -->
+          <div v-if="authStore.userRole === 'owner'" class="border-t border-gray-900/60 pt-4 flex items-center justify-between">
+            <div>
+              <label class="block font-bold text-neutral-300 uppercase tracking-wider text-[10px]">No requiere pago</label>
+              <p class="text-[9px] text-neutral-500">Activa automáticamente las nuevas membresías sin requerir un pago registrado.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer select-none">
+              <input v-model="memberForm.noPaymentRequired" type="checkbox" class="sr-only peer" />
+              <div class="w-11 h-6 bg-neutral-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-500 peer-checked:after:bg-[#F59E0B] after:border-gray-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F59E0B]/20 border border-gray-800"></div>
+            </label>
+          </div>
+
           <div class="flex justify-end space-x-3 pt-4 border-t border-gray-900/60">
             <button @click="showAddMemberModal = false" type="button" class="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 rounded-xl text-xs font-bold cursor-pointer transition-all border border-gray-800/60">Cancelar</button>
             <button type="submit" class="px-5 py-2.5 bg-[#FA2F2A] hover:bg-[#d6201b] text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">Guardar Perfil</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- MODAL DE ENROLAMIENTO BIOMÉTRICO (NUEVO) -->
+    <div v-if="showEnrollModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+        <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
+          <h4 class="saas-title">Enrolar Huella Dactilar</h4>
+          <button @click="closeEnrollModal" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+          <div class="p-4 bg-neutral-950 border border-gray-900 rounded-xl space-y-2">
+            <div class="flex justify-between text-neutral-450 font-mono text-[10px]">
+              <span>Dedo a registrar:</span>
+              <span class="text-white font-bold">{{ fingerNames[enrollFingerIndex] }}</span>
+            </div>
+            <div class="flex justify-between text-neutral-450 font-mono text-[10px]">
+              <span>Miembro:</span>
+              <span class="text-white font-bold">{{ memberStore.selectedMember?.firstName }} {{ memberStore.selectedMember?.lastName }}</span>
+            </div>
+          </div>
+
+          <!-- Connection / Scan Status Indicator -->
+          <div class="p-6 border border-gray-900 bg-[#0A0A0A] rounded-xl flex flex-col items-center justify-center space-y-4 min-h-[160px]">
+            <div class="relative flex items-center justify-center">
+              <div 
+                v-if="enrollStep === 'waiting_agent'" 
+                class="w-12 h-12 rounded-full bg-red-950/20 text-[#FA2F2A] border border-red-900/30 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div 
+                v-else-if="enrollStep === 'ready' || enrollStep === 'step_1' || enrollStep === 'step_2' || enrollStep === 'step_3'" 
+                class="w-12 h-12 rounded-full bg-amber-950/20 text-[#F59E0B] border border-[#F59E0B]/30 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11a13.917 13.917 0 00-2.338-7.794M21 12c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09a13.916 13.916 0 002.002-7.643 13.916 13.916 0 00-2.338-7.794M12 11c0-1.11-.274-2.158-.758-3.08a9.96 9.96 0 011.516-3.896M12 11c0 1.11-.274 2.158-.758 3.08M12 3a9.96 9.96 0 00-3.243.539M9 21a9.96 9.96 0 003.243-.539M9 21c-1.11 0-2.158-.274-3.08-.758M9 21a9.96 9.96 0 003.243-.539M9 3a9.96 9.96 0 013.08.758M6.079 5.243A9.967 9.967 0 019 4.08M6.079 18.757A9.967 9.967 0 019 19.92" />
+                </svg>
+              </div>
+              <div 
+                v-else-if="enrollStep === 'success'" 
+                class="w-12 h-12 rounded-full bg-emerald-950/20 text-[#10B981] border border-emerald-900/30 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div 
+                v-else-if="enrollStep === 'error'" 
+                class="w-12 h-12 rounded-full bg-red-950/20 text-[#FA2F2A] border border-red-900/30 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Descriptive Text -->
+            <div class="text-center space-y-1.5 px-4 font-sans">
+              <h5 class="font-bold text-white uppercase tracking-wider text-[10px]">
+                <span v-if="enrollStep === 'waiting_agent'">Agente no detectado</span>
+                <span v-else-if="enrollStep === 'ready'">Lector Listo</span>
+                <span v-else-if="enrollStep === 'step_1'">Coloque el dedo (1 / 3)</span>
+                <span v-else-if="enrollStep === 'step_2'">Coloque el dedo (2 / 3)</span>
+                <span v-else-if="enrollStep === 'step_3'">Coloque el dedo (3 / 3)</span>
+                <span v-else-if="enrollStep === 'success'">¡Registro Exitoso!</span>
+                <span v-else-if="enrollStep === 'error'">Error de Escaneo</span>
+              </h5>
+              <p class="text-neutral-450 text-[10px] leading-relaxed">
+                <span v-if="enrollStep === 'waiting_agent'">
+                  No se pudo establecer comunicación con el lector en <code>ws://localhost:9000</code>. Asegúrese de que el Agente de Escritorio esté ejecutándose.
+                </span>
+                <span v-else-if="enrollStep === 'ready'">
+                  Coloque el dedo seleccionado en el cristal del escáner ZK9500 para comenzar la captura.
+                </span>
+                <span v-else-if="enrollStep === 'step_1'">
+                  Retire y vuelva a colocar el dedo para realizar la segunda lectura.
+                </span>
+                <span v-else-if="enrollStep === 'step_2'">
+                  Retire y vuelva a colocar el dedo para realizar la tercera lectura final.
+                </span>
+                <span v-else-if="enrollStep === 'step_3'">
+                  Procesando y unificando el patrón minutiae dactilar...
+                </span>
+                <span v-else-if="enrollStep === 'success'">
+                  La huella se ha fusionado y asociado al miembro correctamente en el servidor.
+                </span>
+                <span v-else-if="enrollStep === 'error'">
+                  {{ enrollErrorMsg || 'La lectura falló. Intente colocar el dedo de forma firme y centrada.' }}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Dev Mode Simulator Panel -->
+          <div v-if="enrollStep === 'waiting_agent' || enrollStep === 'error'" class="p-4 bg-neutral-950 border border-dashed border-gray-900 rounded-xl space-y-3 font-sans">
+            <div class="flex justify-between items-center">
+              <div>
+                <h6 class="text-[10px] font-bold text-neutral-300 uppercase tracking-wide">Modo de Demostración (Simulador)</h6>
+                <p class="text-[9px] text-neutral-500">¿No tiene un lector físico conectado?</p>
+              </div>
+              <button 
+                type="button" 
+                @click="triggerSimulatedEnrollment"
+                class="px-2.5 py-1.5 bg-[#F59E0B] text-black font-bold text-[9px] uppercase rounded-lg hover:bg-[#d97706] transition-all cursor-pointer shadow-sm"
+              >
+                Simular Escaneo
+              </button>
+            </div>
+          </div>
+
+          <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end font-sans">
+            <button 
+              type="button" 
+              @click="closeEnrollModal"
+              class="bg-neutral-900 hover:bg-neutral-850 text-white py-2 px-4 rounded-xl font-bold transition-all cursor-pointer border border-gray-800"
+            >
+              {{ enrollStep === 'success' ? 'Listo' : 'Cancelar' }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

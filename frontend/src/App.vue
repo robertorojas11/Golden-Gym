@@ -3,11 +3,13 @@ import { computed, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from './stores/auth.store';
 import { useSyncStore } from './stores/sync.store';
+import { useBiometricStore } from './stores/biometric.store';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
+const biometricStore = useBiometricStore();
 
 const isLoginPage = computed(() => route.path === '/login');
 const showPopover = ref(false);

@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS members (
     
     registration_date DATE DEFAULT CURRENT_DATE NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    no_payment_required BOOLEAN DEFAULT FALSE NOT NULL,
     created_by UUID REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -292,4 +293,20 @@ CREATE INDEX IF NOT EXISTS idx_access_logs_member_scanned ON access_logs(member_
 CREATE INDEX IF NOT EXISTS idx_payments_member_date ON payments(member_id, payment_date DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_member_documents_member ON member_documents(member_id) WHERE deleted_at IS NULL;
+
+-- -----------------------------------------------------
+-- Table: member_fingerprints
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_fingerprints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    finger_index INT NOT NULL CHECK (finger_index BETWEEN 0 AND 9),
+    template_data TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT uq_member_fingerprint UNIQUE (member_id, finger_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_fingerprints_member ON member_fingerprints(member_id) WHERE deleted_at IS NULL;
 
