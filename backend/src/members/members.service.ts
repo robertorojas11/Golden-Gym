@@ -10,8 +10,9 @@ export class MembersService {
     return this.db.members
       .filter((m) => m.isActive !== false)
       .map((m) => {
+        const today = new Date().toISOString().split('T')[0];
         const activeMembership = this.db.memberships.find(
-          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE',
+          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE' && ms.endDate >= today,
         );
         return {
           ...m,
@@ -43,8 +44,9 @@ export class MembersService {
             m.email?.toLowerCase().includes(q)),
       )
       .map((m) => {
+        const today = new Date().toISOString().split('T')[0];
         const activeMembership = this.db.memberships.find(
-          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE',
+          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE' && ms.endDate >= today,
         );
         return {
           ...m,
@@ -77,6 +79,7 @@ export class MembersService {
       emergencyContactRelationship: memberData.emergencyContactRelationship || '',
       registrationDate: new Date().toISOString().split('T')[0],
       isActive: true,
+      noPaymentRequired: memberData.noPaymentRequired === true,
       photoUrl: memberData.photoUrl || '',
       notes: memberData.notes || [],
       createdBy: userId || '33333333-3333-3333-3333-333333333333',

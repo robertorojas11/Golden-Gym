@@ -164,15 +164,122 @@ export const useBiometricStore = defineStore('biometric', () => {
     activeResult.value = null;
   }
 
+  const enrolledFingerprints = ref<any[]>([]);
+
+  async function fetchMemberFingerprints(memberId: string) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/biometric/member/${memberId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        enrolledFingerprints.value = await response.json();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function saveFingerprint(memberId: string, fingerIndex: number, templateData: string) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/biometric/enroll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ memberId, fingerIndex, templateData })
+      });
+      if (response.ok) {
+        await fetchMemberFingerprints(memberId);
+        return true;
+      } else {
+        const txt = await response.text();
+        alert(`Error del Servidor [${response.status}]: ${txt}`);
+      }
+    } catch (e) {
+      alert(`Error de Red/Excepción: ${e}`);
+    }
+    return false;
+  }
+
+  async function deleteFingerprint(memberId: string, fingerIndex: number) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_URL}/biometric/enroll/${memberId}/${fingerIndex}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        await fetchMemberFingerprints(memberId);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+  let agentWS: WebSocket | null = null;
+  const isAgentConnected = ref(false);
+
+  function connectToAgent() {
+    if (typeof window === 'undefined') return;
+    
+    agentWS = new WebSocket('ws://localhost:9000');
+    
+    agentWS.onopen = () => {
+      isAgentConnected.value = true;
+      console.log('Conectado al Agente Biométrico Local');
+    };
+    
+    agentWS.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === 'scan_match' && data.memberId) {
+          triggerSimulatedScan(data.memberId);
+        }
+      } catch (e) {
+        // Ignorar mensajes de enrolamiento
+      }
+    };
+    
+    agentWS.onclose = () => {
+      isAgentConnected.value = false;
+      setTimeout(connectToAgent, 5000);
+    };
+    
+    agentWS.onerror = () => {
+      isAgentConnected.value = false;
+    };
+  }
+
+  function sendSyncToAgent() {
+    if (agentWS && agentWS.readyState === WebSocket.OPEN) {
+      agentWS.send(JSON.stringify({ action: 'sync' }));
+      return true;
+    }
+    return false;
+  }
+
+  connectToAgent();
+
   return {
     isScanning,
     scanStep,
     activeResult,
     logs,
     memberLogs,
+    enrolledFingerprints,
+    isAgentConnected,
     triggerSimulatedScan,
     fetchLogs,
     fetchMemberLogs,
+    fetchMemberFingerprints,
+    saveFingerprint,
+    deleteFingerprint,
+    sendSyncToAgent,
     resetScanner,
   };
 });

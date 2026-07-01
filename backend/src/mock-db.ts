@@ -34,6 +34,7 @@ export interface Member {
   emergencyContactRelationship: string;
   registrationDate: string;
   isActive: boolean;
+  noPaymentRequired?: boolean;
   photoUrl?: string;
   notes?: string[];
   createdBy?: string;
@@ -100,6 +101,14 @@ export interface MemberDocument {
   uploadedAt: string;
 }
 
+export interface MemberFingerprint {
+  id: string;
+  memberId: string;
+  fingerIndex: number;
+  templateData: string;
+  createdAt: string;
+}
+
 @Injectable()
 export class MockDatabase implements OnModuleInit {
   private pool: Pool;
@@ -121,6 +130,7 @@ export class MockDatabase implements OnModuleInit {
   public payments: Payment[] = [];
   public accessLogs: AccessLog[] = [];
   public documents: MemberDocument[] = [];
+  public fingerprints: MemberFingerprint[] = [];
 
   async onModuleInit() {
     console.log('Initializing connection to PostgreSQL...');
@@ -137,6 +147,21 @@ export class MockDatabase implements OnModuleInit {
         await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT FALSE NOT NULL');
         await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS max_members INT DEFAULT 1');
         await this.pool.query('ALTER TABLE memberships ADD COLUMN IF NOT EXISTS parent_membership_id UUID REFERENCES memberships(id) ON DELETE CASCADE');
+
+        // Ensure member_fingerprints table exists
+        await this.pool.query(`
+          CREATE TABLE IF NOT EXISTS member_fingerprints (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            finger_index INT NOT NULL CHECK (finger_index BETWEEN 0 AND 9),
+            template_data TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            deleted_at TIMESTAMP WITH TIME ZONE,
+            CONSTRAINT uq_member_fingerprint UNIQUE (member_id, finger_index)
+          )
+        `);
+        await this.pool.query('CREATE INDEX IF NOT EXISTS idx_member_fingerprints_member ON member_fingerprints(member_id) WHERE deleted_at IS NULL');
 
         connected = true;
         break;
@@ -232,6 +257,7 @@ export class MockDatabase implements OnModuleInit {
         emergencyContactRelationship: row.emergency_contact_relationship,
         registrationDate: row.registration_date ? row.registration_date.toISOString().split('T')[0] : '',
         isActive: row.is_active,
+        noPaymentRequired: row.no_payment_required || false,
         photoUrl: photo ? photo.photo_url : '',
         notes: mNotes,
         createdBy: row.created_by,
@@ -306,7 +332,22 @@ export class MockDatabase implements OnModuleInit {
       uploadedAt: row.uploaded_at ? row.uploaded_at.toISOString() : '',
     }));
 
-    console.log(`Successfully synced PostgreSQL: ${this.users.length} users, ${this.members.length} members, ${this.plans.length} plans, ${this.memberships.length} memberships, ${this.payments.length} payments, ${this.accessLogs.length} access logs, ${this.documents.length} docs.`);
+    // 8. Load fingerprints
+    try {
+      const fpRes = await this.pool.query('SELECT * FROM member_fingerprints WHERE deleted_at IS NULL');
+      this.fingerprints = fpRes.rows.map(row => ({
+        id: row.id,
+        memberId: row.member_id,
+        fingerIndex: row.finger_index,
+        templateData: row.template_data,
+        createdAt: row.created_at ? row.created_at.toISOString() : '',
+      }));
+    } catch (e) {
+      console.warn('Could not load member_fingerprints table:', e);
+      this.fingerprints = [];
+    }
+
+    console.log(`Successfully synced PostgreSQL: ${this.users.length} users, ${this.members.length} members, ${this.plans.length} plans, ${this.memberships.length} memberships, ${this.payments.length} payments, ${this.accessLogs.length} access logs, ${this.documents.length} docs, ${this.fingerprints.length} fingerprints.`);
   }
 
   loadMockBackup() {
@@ -344,25 +385,26 @@ export class MockDatabase implements OnModuleInit {
 
   async saveMember(member: Member) {
     await this.pool.query(`
-      INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, is_active, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, is_active, created_by, no_payment_required)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (id) DO UPDATE SET
-        first_name = $3,
-        last_name = $4,
-        gender = $5,
-        birth_date = $6,
-        email = $7,
-        phone = $8,
-        street = $9,
-        number = $10,
-        city = $11,
-        state = $12,
-        postal_code = $13,
-        emergency_contact_name = $14,
-        emergency_contact_phone = $15,
-        emergency_contact_relationship = $16,
-        is_active = $17,
-        updated_at = CURRENT_TIMESTAMP
+      	first_name = $3,
+      	last_name = $4,
+      	gender = $5,
+      	birth_date = $6,
+      	email = $7,
+      	phone = $8,
+      	street = $9,
+      	number = $10,
+      	city = $11,
+      	state = $12,
+      	postal_code = $13,
+      	emergency_contact_name = $14,
+      	emergency_contact_phone = $15,
+      	emergency_contact_relationship = $16,
+      	is_active = $17,
+        no_payment_required = $19,
+      	updated_at = CURRENT_TIMESTAMP
     `, [
       member.id,
       member.memberNumber,
@@ -381,7 +423,8 @@ export class MockDatabase implements OnModuleInit {
       member.emergencyContactPhone || null,
       member.emergencyContactRelationship || null,
       member.isActive,
-      member.createdBy || null
+      member.createdBy || null,
+      member.noPaymentRequired || false
     ]);
 
     if (member.photoUrl !== undefined) {
@@ -466,6 +509,45 @@ export class MockDatabase implements OnModuleInit {
 
   async deleteDocument(docId: string) {
     await this.pool.query('DELETE FROM member_documents WHERE id = $1', [docId]);
+  }
+
+  async saveFingerprint(fp: { memberId: string; fingerIndex: number; templateData: string }): Promise<MemberFingerprint> {
+    await this.pool.query(
+      'DELETE FROM member_fingerprints WHERE member_id = $1 AND finger_index = $2',
+      [fp.memberId, fp.fingerIndex]
+    );
+    this.fingerprints = this.fingerprints.filter(
+      (f) => !(f.memberId === fp.memberId && f.fingerIndex === fp.fingerIndex)
+    );
+
+    const res = await this.pool.query(
+      `INSERT INTO member_fingerprints (member_id, finger_index, template_data) 
+       VALUES ($1, $2, $3) 
+       RETURNING *`,
+      [fp.memberId, fp.fingerIndex, fp.templateData]
+    );
+    
+    const row = res.rows[0];
+    const newFp: MemberFingerprint = {
+      id: row.id,
+      memberId: row.member_id,
+      fingerIndex: row.finger_index,
+      templateData: row.template_data,
+      createdAt: row.created_at.toISOString(),
+    };
+    this.fingerprints.push(newFp);
+    return newFp;
+  }
+
+  async deleteFingerprint(memberId: string, fingerIndex: number): Promise<boolean> {
+    await this.pool.query(
+      'DELETE FROM member_fingerprints WHERE member_id = $1 AND finger_index = $2',
+      [memberId, fingerIndex]
+    );
+    this.fingerprints = this.fingerprints.filter(
+      (f) => !(f.memberId === memberId && f.fingerIndex === fingerIndex)
+    );
+    return true;
   }
 }
 

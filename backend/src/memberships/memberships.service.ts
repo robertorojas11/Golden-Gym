@@ -32,8 +32,9 @@ export class MembershipsService {
     }
 
     // Check if there is already an active membership.
+    const todayStr = new Date().toISOString().split('T')[0];
     const activePlan = this.db.memberships.find(
-      (m) => m.memberId === memberId && m.status === 'ACTIVE'
+      (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate >= todayStr
     );
 
     if (activePlan) {
@@ -44,7 +45,7 @@ export class MembershipsService {
     if (additionalMemberIds && additionalMemberIds.length > 0) {
       for (const addId of additionalMemberIds) {
         const activeAdd = this.db.memberships.find(
-          (m) => m.memberId === addId && m.status === 'ACTIVE'
+          (m) => m.memberId === addId && m.status === 'ACTIVE' && m.endDate >= todayStr
         );
         if (activeAdd) {
           const addMember = this.db.members.find(m => m.id === addId);
@@ -88,18 +89,13 @@ export class MembershipsService {
     const startDate = new Date(startDateStr);
     const endDate = new Date(startDateStr);
     
-    // Day counts has to exclude Sundays!
-    let addedDays = 0;
-    while (addedDays < plan.durationDays) {
-      endDate.setDate(endDate.getDate() + 1);
-      if (endDate.getDay() !== 0) { // 0 is Sunday
-        addedDays++;
-      }
-    }
+    // Count Sundays to calculate end date (standard calendar days)
+    endDate.setDate(startDate.getDate() + plan.durationDays);
 
     // If start date is in the past (migration of old users), auto-activate without pending payment
-    const todayStr = new Date().toISOString().split('T')[0];
     const isPastDate = startDateStr < todayStr;
+    const mainMember = this.db.members.find((m) => m.id === memberId);
+    const noPaidRequired = mainMember?.noPaymentRequired === true;
 
     const newMembership: Membership = {
       id: randomUUID(),
@@ -108,7 +104,7 @@ export class MembershipsService {
       planName: plan.name,
       startDate: startDateStr,
       endDate: endDate.toISOString().split('T')[0],
-      status: isPastDate ? 'ACTIVE' : 'PENDING',
+      status: (isPastDate || noPaidRequired) ? 'ACTIVE' : 'PENDING',
     };
 
     this.db.memberships.push(newMembership);
