@@ -304,9 +304,9 @@ const filteredMembers = computed(() => {
     // 2. Filtro de estatus
     if (filterStatus.value !== 'ALL') {
       if (filterStatus.value === 'ACTIVE') {
-        if (!m.hasActiveMembership) return false;
+        if (m.isActive === false) return false;
       } else if (filterStatus.value === 'INACTIVE') {
-        if (m.hasActiveMembership) return false;
+        if (m.isActive !== false) return false;
       }
     }
     return true;
@@ -460,6 +460,16 @@ async function confirmDeactivate() {
     triggerToast('Ocurrió un error inesperado.');
   } finally {
     isDeactivating.value = false;
+  }
+}
+
+async function handleReactivate() {
+  if (!memberStore.selectedMember) return;
+  const success = await memberStore.reactivateMember(memberStore.selectedMember.id);
+  if (success) {
+    triggerToast('Miembro reactivado correctamente.');
+  } else {
+    triggerToast('Error al reactivar el miembro.');
   }
 }
 
@@ -1128,7 +1138,7 @@ const formattedNotes = computed(() => {
               @input="handleSearch"
               type="text" 
               placeholder="Buscar por nombre, folio..." 
-              class="w-full saas-input pl-9 text-xs"
+              class="w-full saas-input saas-input-with-icon text-xs"
             />
             <span class="absolute left-3 top-2.5 text-neutral-500">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1285,6 +1295,14 @@ const formattedNotes = computed(() => {
                   >
                     {{ memberStore.selectedMember.isActive ? 'ACTIVO' : 'SUSPENDIDO' }}
                   </span>
+                  
+                  <!-- Insignia de Sin Pago Requerido (Owner Benefit) -->
+                  <span 
+                    v-if="memberStore.selectedMember.noPaymentRequired"
+                    class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider border font-mono bg-amber-400/10 text-amber-400 border-amber-400/30"
+                  >
+                    BENEFICIO: SIN COSTO
+                  </span>
                 </div>
                 
                 <div class="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-neutral-400 font-mono">
@@ -1322,6 +1340,13 @@ const formattedNotes = computed(() => {
                 class="bg-[#FA2F2A]/10 border border-[#FA2F2A]/20 text-[#FA2F2A] hover:bg-[#FA2F2A] hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
               >
                 Suspender Miembro
+              </button>
+              <button 
+                v-if="authStore.hasPermission('manage:access') && !memberStore.selectedMember.isActive"
+                @click="handleReactivate"
+                class="bg-emerald-500/10 border border-emerald-500/20 text-[#10B981] hover:bg-[#10B981] hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Reactivar Miembro
               </button>
             </div>
           </div>
@@ -2082,8 +2107,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL 1: EDITAR PERFIL MIEMBRO -->
-    <div v-if="showEditMemberModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-2xl w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showEditMemberModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-2xl w-full p-6 space-y-6 relative animate-in fade-in zoom-in-95 duration-200 my-8">
         <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
           <h4 class="saas-title">Editar Perfil del Miembro</h4>
           <button @click="showEditMemberModal = false" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
@@ -2237,8 +2262,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL DE REGISTRO DE PAGO (NUEVO) -->
-    <div v-if="showRegisterPaymentModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showRegisterPaymentModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150 my-8">
         <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
           <h4 class="saas-title">Registrar Recibo de Pago</h4>
           <button @click="showRegisterPaymentModal = false" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
@@ -2295,8 +2320,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL 2: ASIGNAR / RENOVAR PLAN -->
-    <div v-if="showRenewPlanModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showRenewPlanModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150 my-8">
         <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
           <h4 class="saas-title">Contratar / Renovar Plan</h4>
           <button @click="showRenewPlanModal = false" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
@@ -2362,8 +2387,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL 3: AUDITAR MEMBRESÍA EN HISTORIAL -->
-    <div v-if="showEditMembershipModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showEditMembershipModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150 my-8">
         <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
           <h4 class="saas-title">Auditar Membresía Contratada</h4>
           <button @click="showEditMembershipModal = false" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
@@ -2383,7 +2408,7 @@ const formattedNotes = computed(() => {
             </select>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Fecha de Inicio</label>
               <input v-model="membershipForm.startDate" type="date" required class="w-full saas-input" />
@@ -2424,8 +2449,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL 4: CONFIRMACIÓN DE SUSPENSIÓN -->
-    <div v-if="showDeactivateModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showDeactivateModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150 my-8">
         <div class="space-y-2 text-left">
           <h4 class="saas-title flex items-center space-x-2 text-[#FA2F2A]">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#FA2F2A]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2464,8 +2489,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL: REGISTRAR NUEVO MIEMBRO -->
-    <div v-if="showAddMemberModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div class="bg-neutral-950 text-white rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl p-6 relative border border-neutral-900 font-sans border-t-4 border-t-[#FA2F2A]">
+    <div v-if="showAddMemberModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="bg-neutral-950 text-white rounded-2xl w-full max-w-2xl shadow-2xl p-6 relative border border-neutral-900 font-sans border-t-4 border-t-[#FA2F2A] my-8">
         <div class="flex justify-between items-center mb-6">
           <h3 class="text-sm font-bold uppercase tracking-widest text-[#FA2F2A]">Registrar Nuevo Miembro</h3>
           <button @click="showAddMemberModal = false" class="text-neutral-400 hover:text-white cursor-pointer text-base">
@@ -2613,8 +2638,8 @@ const formattedNotes = computed(() => {
     </div>
 
     <!-- MODAL DE ENROLAMIENTO BIOMÉTRICO (NUEVO) -->
-    <div v-if="showEnrollModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150">
+    <div v-if="showEnrollModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 overflow-y-auto p-4 flex justify-center items-start">
+      <div class="saas-card-elevated max-w-md w-full p-6 space-y-6 animate-in zoom-in-95 duration-150 my-8">
         <div class="flex justify-between items-center pb-2.5 border-b border-gray-900">
           <h4 class="saas-title">Enrolar Huella Dactilar</h4>
           <button @click="closeEnrollModal" class="text-neutral-400 hover:text-white text-lg leading-none cursor-pointer">&times;</button>
@@ -2804,6 +2829,9 @@ const formattedNotes = computed(() => {
   outline: none !important;
   border-color: #F59E0B !important;
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15) !important;
+}
+.saas-input-with-icon {
+  padding-left: 2.3rem !important;
 }
 
 /* Custom button overrides */

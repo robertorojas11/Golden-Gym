@@ -128,6 +128,30 @@ export const useMemberStore = defineStore('member', () => {
     return false;
   }
 
+  async function reactivateMember(id: string) {
+    try {
+      const member = members.value.find(m => m.id === id);
+      const name = member ? `${member.firstName} ${member.lastName}` : id;
+      const res = await fetch(`${API_URL}/members/${id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ isActive: true }),
+      });
+      if (res.ok) {
+        await fetchMembers();
+        if (selectedMember.value && selectedMember.value.id === id) {
+          await fetchMemberDetail(id);
+        }
+        syncStore.registerModification('REACTIVACION_MIEMBRO', `Miembro reactivado: ${name}`);
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  }
+
+
   async function assignMembership(memberId: string, planId: string, startDate?: string, additionalMemberIds?: string[]) {
     try {
       const member = members.value.find(m => m.id === memberId);
@@ -295,6 +319,7 @@ export const useMemberStore = defineStore('member', () => {
     createMember,
     updateMember,
     deactivateMember,
+    reactivateMember,
     assignMembership,
     registerPayment,
     createPlan,

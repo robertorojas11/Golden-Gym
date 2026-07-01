@@ -8,7 +8,6 @@ export class MembersService {
 
   findAll() {
     return this.db.members
-      .filter((m) => m.isActive !== false)
       .map((m) => {
         const today = new Date().toISOString().split('T')[0];
         const activeMembership = this.db.memberships.find(
@@ -36,7 +35,6 @@ export class MembersService {
     return this.db.members
       .filter(
         (m) =>
-          m.isActive !== false &&
           (m.firstName.toLowerCase().includes(q) ||
             m.lastName.toLowerCase().includes(q) ||
             m.memberNumber.toLowerCase().includes(q) ||
