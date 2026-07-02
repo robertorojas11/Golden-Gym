@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS members (
     last_name VARCHAR(50) NOT NULL,
     gender VARCHAR(20),
     birth_date DATE NOT NULL,
-    email VARCHAR(100) UNIQUE,
+    email VARCHAR(100),
     phone VARCHAR(20) NOT NULL,
     
     -- Address

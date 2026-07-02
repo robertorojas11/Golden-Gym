@@ -86,6 +86,12 @@ onMounted(() => {
   memberStore.fetchPlans();
 });
 
+// Redirect helper to members view
+function viewMemberProfile(memberId?: string) {
+  if (!memberId) return;
+  router.push(`/members?selectMemberId=${memberId}`);
+}
+
 // Modal states
 const showAddMember = ref(false);
 const showAssignPlan = ref(false);
@@ -447,17 +453,26 @@ function formatNumber(val: number) {
 
     <!-- Widgets Section -->
     <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
-      <div class="premium-card p-4 bg-white">
+      <div 
+        @click="router.push('/members?status=ACTIVE')"
+        class="premium-card p-4 bg-white cursor-pointer hover:border-neutral-300 transition-all hover:shadow-md"
+      >
         <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Miembros Activos</p>
         <p class="text-2xl font-bold text-neutral-900 mt-2">{{ summary.activeMembers }}</p>
       </div>
 
-      <div class="premium-card p-4 bg-white">
+      <div 
+        @click="router.push('/members?status=ACTIVE&sort=EXPIRATION_DATE_ASC')"
+        class="premium-card p-4 bg-white cursor-pointer hover:border-neutral-300 transition-all hover:shadow-md"
+      >
         <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Por Vencer (7d)</p>
         <p class="text-2xl font-bold text-[#FFA624] mt-2">{{ summary.expiringMemberships }}</p>
       </div>
 
-      <div class="premium-card p-4 bg-white">
+      <div 
+        @click="router.push('/members?status=EXPIRED')"
+        class="premium-card p-4 bg-white cursor-pointer hover:border-neutral-300 transition-all hover:shadow-md"
+      >
         <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Planes Vencidos</p>
         <p class="text-2xl font-bold text-red-500 mt-2">{{ summary.expiredMemberships }}</p>
       </div>
@@ -635,7 +650,12 @@ function formatNumber(val: number) {
               <div class="flex items-center space-x-3">
                 <img :src="getMemberAvatarUrl(log)" alt="Foto Miembro" class="w-8 h-8 rounded-full border bg-neutral-100 object-cover object-center" />
                 <div>
-                  <p class="text-xs font-bold text-neutral-800">{{ log.memberName }}</p>
+                  <p 
+                    @click="viewMemberProfile(log.memberId)" 
+                    class="text-xs font-bold text-neutral-800 hover:text-[#FA2F2A] hover:underline cursor-pointer transition-colors"
+                  >
+                    {{ log.memberName }}
+                  </p>
                   <p class="text-[10px] text-neutral-400">
                     {{ log.membershipType }} • {{ new Date(log.scannedAt).toLocaleString() }}
                   </p>
@@ -673,7 +693,12 @@ function formatNumber(val: number) {
           <div class="space-y-4">
             <div v-for="ms in recent.upcomingExpirations" :key="ms.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
               <div>
-                <p class="text-xs font-bold text-neutral-800">{{ ms.memberName }}</p>
+                <p 
+                  @click="viewMemberProfile(ms.memberId)" 
+                  class="text-xs font-bold text-neutral-800 hover:text-[#FA2F2A] hover:underline cursor-pointer transition-colors"
+                >
+                  {{ ms.memberName }}
+                </p>
                 <p class="text-[10px] text-neutral-400">{{ ms.planName }}</p>
               </div>
               <span class="text-[11px] font-semibold text-[#FFA624]">
@@ -705,7 +730,12 @@ function formatNumber(val: number) {
           <div class="space-y-4">
             <div v-for="pay in recent.recentPayments" :key="pay.id" class="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
               <div>
-                <p class="text-xs font-bold text-neutral-800">{{ pay.memberName }}</p>
+                <p 
+                  @click="viewMemberProfile(pay.memberId)" 
+                  class="text-xs font-bold text-neutral-800 hover:text-[#FA2F2A] hover:underline cursor-pointer transition-colors"
+                >
+                  {{ pay.memberName }}
+                </p>
                 <p class="text-[10px] text-neutral-400">{{ pay.method }}</p>
               </div>
               <div class="text-right">

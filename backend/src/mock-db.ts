@@ -72,6 +72,7 @@ export interface Payment {
   paymentMethodId: string;
   paymentMethodName: string;
   amount: number; // in cents MXN
+  discount?: number; // in cents MXN
   referenceNumber: string;
   paymentDate: string;
   status: 'PAID' | 'REFUNDED' | 'FAILED';
@@ -145,8 +146,10 @@ export class MockDatabase implements OnModuleInit {
         
         // Ensure new group plans columns exist in schema
         await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS is_group BOOLEAN DEFAULT FALSE NOT NULL');
+        await this.pool.query('ALTER TABLE members DROP CONSTRAINT IF EXISTS members_email_key');
         await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS max_members INT DEFAULT 1');
         await this.pool.query('ALTER TABLE memberships ADD COLUMN IF NOT EXISTS parent_membership_id UUID REFERENCES memberships(id) ON DELETE CASCADE');
+        await this.pool.query('ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount INT DEFAULT 0 NOT NULL');
 
         // Ensure member_fingerprints table exists
         await this.pool.query(`
@@ -187,7 +190,28 @@ export class MockDatabase implements OnModuleInit {
     }
   }
 
+  async updateExpiredMemberships() {
+    const today = new Date().toISOString().split('T')[0];
+    if (this.memberships) {
+      for (const m of this.memberships) {
+        if (m.status === 'ACTIVE' && m.endDate < today) {
+          m.status = 'EXPIRED';
+        }
+      }
+    }
+    try {
+      await this.pool.query(`
+        UPDATE memberships 
+        SET status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP 
+        WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE
+      `);
+    } catch (e) {
+      console.warn('Could not auto-expire memberships in database:', e);
+    }
+  }
+
   async loadAllFromDatabase() {
+    await this.updateExpiredMemberships();
     // 1. Load users
     const usersRes = await this.pool.query('SELECT * FROM users');
     const rolesRes = await this.pool.query('SELECT * FROM roles');
@@ -294,6 +318,7 @@ export class MockDatabase implements OnModuleInit {
         paymentMethodId: row.payment_method_id,
         paymentMethodName: method ? method.name : 'Efectivo',
         amount: row.amount,
+        discount: row.discount || 0,
         referenceNumber: row.reference_number,
         paymentDate: row.payment_date ? row.payment_date.toISOString() : '',
         status: row.status,
@@ -480,12 +505,12 @@ export class MockDatabase implements OnModuleInit {
 
   async savePayment(payment: Payment) {
     await this.pool.query(`
-      INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO payments (id, member_id, membership_id, payment_method_id, amount, reference_number, payment_date, status, processed_by, discount)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (id) DO UPDATE SET
         status = $8,
         updated_at = CURRENT_TIMESTAMP
-    `, [payment.id, payment.memberId, payment.membershipId, payment.paymentMethodId, payment.amount, payment.referenceNumber, payment.paymentDate || null, payment.status, payment.processedBy]);
+    `, [payment.id, payment.memberId, payment.membershipId, payment.paymentMethodId, payment.amount, payment.referenceNumber, payment.paymentDate || null, payment.status, payment.processedBy, payment.discount || 0]);
   }
 
   async saveAccessLog(log: AccessLog) {

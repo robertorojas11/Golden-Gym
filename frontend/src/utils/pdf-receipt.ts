@@ -85,33 +85,58 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   // Concept Item details
   doc.setFont('Helvetica', 'normal');
   doc.text(planName || 'Suscripción de Plan', 8, dividerY + 11);
-  const amountVal = payment.amount / 100;
-  const amountStr = `$${amountVal.toFixed(2)} MXN`;
-  doc.setFont('Helvetica', 'bold');
-  doc.text(amountStr, 72, dividerY + 11, { align: 'right' });
   
-  // Divider
-  doc.line(8, dividerY + 17, 72, dividerY + 17);
+  const discountVal = (payment.discount || 0) / 100;
+  const amountVal = payment.amount / 100;
+  
+  let currentOffset = dividerY + 11;
+  
+  if (discountVal > 0) {
+    const originalVal = amountVal + discountVal;
+    doc.setFont('Helvetica', 'normal');
+    doc.text(`$${originalVal.toFixed(2)} MXN`, 72, currentOffset, { align: 'right' });
+    
+    currentOffset += 5;
+    doc.setFont('Helvetica', 'normal');
+    doc.text('Descuento aplicado:', 8, currentOffset);
+    doc.setTextColor(250, 47, 42); // Red for discount
+    doc.text(`-$${discountVal.toFixed(2)} MXN`, 72, currentOffset, { align: 'right' });
+    doc.setTextColor(40, 40, 40); // Reset color
+  } else {
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`$${amountVal.toFixed(2)} MXN`, 72, currentOffset, { align: 'right' });
+  }
+  
+  currentOffset += 5;
+  doc.line(8, currentOffset, 72, currentOffset);
+  
+  currentOffset += 5;
+  doc.setFont('Helvetica', 'bold');
+  doc.text('Total Neto Pagado:', 8, currentOffset);
+  doc.text(`$${amountVal.toFixed(2)} MXN`, 72, currentOffset, { align: 'right' });
+  
+  currentOffset += 4;
+  doc.line(8, currentOffset, 72, currentOffset);
   
   // Payment Info
   doc.setFont('Helvetica', 'normal');
-  doc.text(`Forma de Pago: ${payment.paymentMethodName || 'Efectivo'}`, 8, dividerY + 23);
-  doc.text('Estado de Transacción: APROBADO', 8, dividerY + 28);
-  doc.text(`Cajero: ${payment.processedByName || 'Administrador'}`, 8, dividerY + 33);
+  doc.text(`Forma de Pago: ${payment.paymentMethodName || 'Efectivo'}`, 8, currentOffset + 6);
+  doc.text('Estado de Transacción: APROBADO', 8, currentOffset + 11);
+  doc.text(`Cajero: ${payment.processedByName || 'Administrador'}`, 8, currentOffset + 16);
   
   // Footer
   doc.setDrawColor(210, 210, 210);
-  doc.line(8, dividerY + 39, 72, dividerY + 39);
+  doc.line(8, currentOffset + 22, 72, currentOffset + 22);
   
   doc.setFont('Helvetica', 'oblique');
   doc.setFontSize(7);
   doc.setTextColor(110, 110, 110);
-  doc.text('¡Gracias por su preferencia!', 40, dividerY + 44, { align: 'center' });
+  doc.text('¡Gracias por su preferencia!', 40, currentOffset + 27, { align: 'center' });
   
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(6.5);
-  doc.text('Conserve este ticket para cualquier aclaración.', 40, dividerY + 49, { align: 'center' });
-  doc.text('Golden Corps Gym - Fuerza, Disciplina y Constancia', 40, dividerY + 53, { align: 'center' });
+  doc.text('Conserve este ticket para cualquier aclaración.', 40, currentOffset + 32, { align: 'center' });
+  doc.text('Golden Corps Gym - Fuerza, Disciplina y Constancia', 40, currentOffset + 36, { align: 'center' });
   
   // Download Action
   doc.save(`Recibo_${payment.referenceNumber}.pdf`);
