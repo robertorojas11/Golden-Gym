@@ -33,3 +33,7 @@ Thumbs.db
 *.sln
 *.sw?
 
+# .NET / C# build folders
+**/bin/
+**/obj/
+
