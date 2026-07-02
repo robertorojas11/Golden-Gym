@@ -6,10 +6,12 @@ import { useSyncStore } from '../stores/sync.store';
 import { useBiometricStore } from '../stores/biometric.store';
 import { downloadPaymentReceipt } from '../utils/pdf-receipt';
 
+import { useRoute } from 'vue-router';
 const memberStore = useMemberStore();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
 const biometricStore = useBiometricStore();
+const route = useRoute();
 
 function formatDateDDMMYYYY(dateInput: any): string {
   if (!dateInput) return 'N/A';
@@ -44,6 +46,7 @@ const isLoading = ref(false);
 const isDetailLoading = ref(false);
 
 const searchQuery = ref('');
+const isSubmitting = ref(false);
 const activeTab = ref<'overview' | 'memberships' | 'payments' | 'activity' | 'documents' | 'biometrics'>('overview');
 
 // Document upload states
@@ -247,52 +250,61 @@ function validateMemberForm(form: any): string | null {
 }
 
 async function saveNewMember() {
+  if (isSubmitting.value) return;
   const errorMsg = validateMemberForm(memberForm.value);
   if (errorMsg) {
     triggerToast(errorMsg);
     return;
   }
 
-  const payload = {
-    ...memberForm.value,
-    notes: memberForm.value.notes ? [memberForm.value.notes] : [],
-  };
-
-  const created = await memberStore.createMember(payload);
-  if (created) {
-    showAddMemberModal.value = false;
-    memberForm.value = {
-      firstName: '',
-      lastName: '',
-      gender: 'Masculino',
-      birthDate: '',
-      email: '',
-      phone: '',
-      street: '',
-      number: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      emergencyContactName: '',
-      emergencyContactPhone: '',
-      emergencyContactRelationship: '',
-      notes: '',
-      photoUrl: '',
-      noPaymentRequired: false,
+  isSubmitting.value = true;
+  try {
+    const payload = {
+      ...memberForm.value,
+      notes: memberForm.value.notes ? [memberForm.value.notes] : [],
     };
-    capturedPhoto.value = null;
-    triggerToast('Miembro registrado correctamente');
-    await memberStore.fetchMembers();
-  } else {
-    triggerToast('Error al registrar miembro');
+
+    const created = await memberStore.createMember(payload);
+    if (created) {
+      showAddMemberModal.value = false;
+      memberForm.value = {
+        firstName: '',
+        lastName: '',
+        gender: 'Masculino',
+        birthDate: '',
+        email: '',
+        phone: '',
+        street: '',
+        number: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        emergencyContactName: '',
+        emergencyContactPhone: '',
+        emergencyContactRelationship: '',
+        notes: '',
+        photoUrl: '',
+        noPaymentRequired: false,
+      };
+      capturedPhoto.value = null;
+      triggerToast('Miembro registrado correctamente');
+      await memberStore.fetchMembers();
+    } else {
+      triggerToast('Error al registrar miembro');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
 const filterPlan = ref('ALL');
 const filterStatus = ref('ALL');
+const sortBy = ref('MEMBER_NUMBER_ASC');
 
 const filteredMembers = computed(() => {
-  return memberStore.members.filter((m: any) => {
+  let list = memberStore.members.filter((m: any) => {
     // 1. Filtro de plan
     if (filterPlan.value !== 'ALL') {
       if (filterPlan.value === 'NONE') {
@@ -307,13 +319,66 @@ const filteredMembers = computed(() => {
         if (m.isActive === false) return false;
       } else if (filterStatus.value === 'INACTIVE') {
         if (m.isActive !== false) return false;
+      } else if (filterStatus.value === 'EXPIRED') {
+        if (m.isActive === false || m.hasActiveMembership === true) return false;
       }
     }
     return true;
   });
+
+  // Sort list
+  list = [...list].sort((a: any, b: any) => {
+    if (sortBy.value === 'ALPHABETICAL_ASC') {
+      return a.lastName.localeCompare(b.lastName);
+    }
+    if (sortBy.value === 'ALPHABETICAL_DESC') {
+      return b.lastName.localeCompare(a.lastName);
+    }
+    if (sortBy.value === 'MEMBER_NUMBER_ASC') {
+      const numA = parseInt(a.memberNumber.replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(b.memberNumber.replace(/\D/g, ''), 10) || 0;
+      return numA - numB;
+    }
+    if (sortBy.value === 'MEMBER_NUMBER_DESC') {
+      const numA = parseInt(a.memberNumber.replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(b.memberNumber.replace(/\D/g, ''), 10) || 0;
+      return numB - numA;
+    }
+    if (sortBy.value === 'EXPIRATION_DATE_ASC' || sortBy.value === 'EXPIRATION_DATE_DESC') {
+      const getExpiration = (member: any) => {
+        const ms = memberStore.activeMemberships.find((m: any) => m.memberId === member.id && m.status === 'ACTIVE');
+        if (ms) return ms.endDate;
+        const lastMs = [...memberStore.activeMemberships]
+          .filter((m: any) => m.memberId === member.id)
+          .sort((x: any, y: any) => y.endDate.localeCompare(x.endDate))[0];
+        return lastMs ? lastMs.endDate : '9999-12-31';
+      };
+
+      const dateA = getExpiration(a);
+      const dateB = getExpiration(b);
+      
+      if (sortBy.value === 'EXPIRATION_DATE_ASC') {
+        return dateA.localeCompare(dateB);
+      } else {
+        if (dateA === '9999-12-31') return 1;
+        if (dateB === '9999-12-31') return -1;
+        return dateB.localeCompare(dateA);
+      }
+    }
+    return 0;
+  });
+
+  return list;
 });
 
 onMounted(async () => {
+  if (route.query.status) {
+    filterStatus.value = route.query.status as string;
+  }
+  if (route.query.sort) {
+    sortBy.value = route.query.sort as string;
+  }
+
   isLoading.value = true;
   await Promise.all([
     memberStore.fetchMembers(),
@@ -322,8 +387,10 @@ onMounted(async () => {
   ]);
   isLoading.value = false;
 
-  // Auto-seleccionar primer miembro si está disponible
-  if (memberStore.members.length > 0 && !memberStore.selectedMember) {
+  // Auto-seleccionar primer miembro o el seleccionado en la redirección
+  if (route.query.selectMemberId) {
+    selectMember(route.query.selectMemberId as string);
+  } else if (memberStore.members.length > 0 && !memberStore.selectedMember) {
     selectMember(memberStore.members[0].id);
   }
 });
@@ -516,15 +583,22 @@ function openEditMembership(ms: any) {
 }
 
 async function handleSaveMembership() {
-  if (!editingMembership.value || !memberStore.selectedMember) return;
-  const success = await memberStore.updateMembership(editingMembership.value.id, membershipForm.value);
-  if (success) {
-    showEditMembershipModal.value = false;
-    editingMembership.value = null;
-    memberStore.fetchMemberDetail(memberStore.selectedMember.id);
-    triggerToast('Historial de membresía actualizado.');
-  } else {
-    triggerToast('Error al actualizar la membresía.');
+  if (!editingMembership.value || !memberStore.selectedMember || isSubmitting.value) return;
+  isSubmitting.value = true;
+  try {
+    const success = await memberStore.updateMembership(editingMembership.value.id, membershipForm.value);
+    if (success) {
+      showEditMembershipModal.value = false;
+      editingMembership.value = null;
+      memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+      triggerToast('Historial de membresía actualizado.');
+    } else {
+      triggerToast('Error al actualizar la membresía.');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -645,18 +719,25 @@ function openEditMemberModal() {
 }
 
 async function handleSaveMember() {
-  if (!memberStore.selectedMember) return;
+  if (!memberStore.selectedMember || isSubmitting.value) return;
   const errorMsg = validateMemberForm(editMemberForm.value);
   if (errorMsg) {
     triggerToast(errorMsg);
     return;
   }
-  const success = await memberStore.updateMember(memberStore.selectedMember.id, editMemberForm.value);
-  if (success) {
-    showEditMemberModal.value = false;
-    triggerToast('Datos de perfil actualizados correctamente.');
-  } else {
-    triggerToast('Error al actualizar datos de perfil.');
+  isSubmitting.value = true;
+  try {
+    const success = await memberStore.updateMember(memberStore.selectedMember.id, editMemberForm.value);
+    if (success) {
+      showEditMemberModal.value = false;
+      triggerToast('Datos de perfil actualizados correctamente.');
+    } else {
+      triggerToast('Error al actualizar datos de perfil.');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -839,6 +920,7 @@ const paymentForm = ref({
   membershipId: '',
   paymentMethodId: '90000000-0000-0000-0000-000000000001',
   amount: 0,
+  discount: 0,
   referenceNumber: '',
 });
 
@@ -851,6 +933,7 @@ function openRegisterPaymentModal() {
     membershipId: '',
     paymentMethodId: '90000000-0000-0000-0000-000000000001',
     amount: 0,
+    discount: 0,
     referenceNumber: '',
   };
   if (memberPendingMemberships.value.length > 0) {
@@ -864,6 +947,7 @@ function openRegisterPaymentModal() {
 }
 
 function onPaymentPlanChange() {
+  paymentForm.value.discount = 0;
   const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
   const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
   if (plan) {
@@ -871,38 +955,67 @@ function onPaymentPlanChange() {
   }
 }
 
+function onDiscountChange() {
+  const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
+  const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+  if (plan) {
+    const originalPrice = plan.price / 100;
+    if (paymentForm.value.discount > originalPrice) {
+      paymentForm.value.discount = originalPrice;
+    }
+    if (paymentForm.value.discount < 0) {
+      paymentForm.value.discount = 0;
+    }
+    paymentForm.value.amount = originalPrice - paymentForm.value.discount;
+  }
+}
+
+function getPlanPriceForSelected() {
+  const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
+  const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+  return plan ? plan.price / 100 : 0;
+}
+
 async function handleRegisterPayment() {
-  if (!memberStore.selectedMember) return;
+  if (!memberStore.selectedMember || isSubmitting.value) return;
   if (!paymentForm.value.membershipId) {
     triggerToast('Debe seleccionar una membresía pendiente.');
     return;
   }
   
-  const payload = {
-    memberId: memberStore.selectedMember.id,
-    membershipId: paymentForm.value.membershipId,
-    paymentMethodId: paymentForm.value.paymentMethodId,
-    amount: paymentForm.value.amount * 100, // a centavos
-    referenceNumber: paymentForm.value.referenceNumber,
-  };
+  isSubmitting.value = true;
+  try {
+    const payload = {
+      memberId: memberStore.selectedMember.id,
+      membershipId: paymentForm.value.membershipId,
+      paymentMethodId: paymentForm.value.paymentMethodId,
+      amount: paymentForm.value.amount * 100, // a centavos
+      discount: (paymentForm.value.discount || 0) * 100, // a centavos
+      referenceNumber: paymentForm.value.referenceNumber,
+    };
 
-  const created = await memberStore.registerPayment(payload);
-  if (created) {
-    showRegisterPaymentModal.value = false;
-    triggerToast('Pago registrado correctamente.');
-    await memberStore.fetchMemberDetail(memberStore.selectedMember.id);
-    
-    // Auto download receipt
-    try {
-      const selectedMs = memberStore.activeMemberships.find((m: any) => m.id === payload.membershipId);
-      const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
-      const planName = plan ? plan.name : 'Plan de Membresía';
-      await downloadPaymentReceipt(created, memberStore.selectedMember, planName, created.beneficiaries);
-    } catch (e) {
-      console.error('Error generating PDF receipt', e);
+    const created = await memberStore.registerPayment(payload);
+    if (created) {
+      showRegisterPaymentModal.value = false;
+      triggerToast('Pago registrado correctamente.');
+      await memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+      
+      // Auto download receipt
+      try {
+        const selectedMs = memberStore.activeMemberships.find((m: any) => m.id === payload.membershipId);
+        const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+        const planName = plan ? plan.name : 'Plan de Membresía';
+        await downloadPaymentReceipt(created, memberStore.selectedMember, planName, created.beneficiaries);
+      } catch (e) {
+        console.error('Error generating PDF receipt', e);
+      }
+    } else {
+      triggerToast('Error al registrar el pago.');
     }
-  } else {
-    triggerToast('Error al registrar el pago.');
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -928,29 +1041,50 @@ const eligibleBeneficiaries = computed(() => {
 
 function openRenewPlanModal() {
   if (!memberStore.selectedMember) return;
-  renewPlanForm.value.planId = memberStore.plans[0]?.id || '';
+  
+  // Find the last membership sorted descending by end date
+  const membershipsCopy = [...memberStore.activeMemberships];
+  membershipsCopy.sort((a: any, b: any) => {
+    return b.endDate.localeCompare(a.endDate) || b.startDate.localeCompare(a.startDate);
+  });
+  
+  const lastMembership = membershipsCopy[0];
+  if (lastMembership) {
+    renewPlanForm.value.planId = lastMembership.planId;
+    renewPlanForm.value.beneficiaryIds = lastMembership.beneficiaryIds ? [...lastMembership.beneficiaryIds] : [];
+  } else {
+    renewPlanForm.value.planId = memberStore.plans[0]?.id || '';
+    renewPlanForm.value.beneficiaryIds = [];
+  }
+  
   renewPlanForm.value.startDate = '';
-  renewPlanForm.value.beneficiaryIds = [];
   showRenewPlanModal.value = true;
 }
 
 async function handleRenewPlan() {
-  if (!memberStore.selectedMember) return;
-  const additionalIds = renewPlanForm.value.beneficiaryIds.filter(id => !!id);
-  const success = await memberStore.assignMembership(
-    memberStore.selectedMember.id, 
-    renewPlanForm.value.planId,
-    renewPlanForm.value.startDate || undefined,
-    additionalIds
-  );
-  if (success) {
-    showRenewPlanModal.value = false;
-    renewPlanForm.value.startDate = '';
-    renewPlanForm.value.beneficiaryIds = [];
-    triggerToast('Membresía asignada/renovada correctamente.');
-    memberStore.fetchMemberDetail(memberStore.selectedMember.id);
-  } else {
-    triggerToast('Error al renovar membresía.');
+  if (!memberStore.selectedMember || isSubmitting.value) return;
+  isSubmitting.value = true;
+  try {
+    const additionalIds = renewPlanForm.value.beneficiaryIds.filter(id => !!id);
+    const success = await memberStore.assignMembership(
+      memberStore.selectedMember.id, 
+      renewPlanForm.value.planId,
+      renewPlanForm.value.startDate || undefined,
+      additionalIds
+    );
+    if (success) {
+      showRenewPlanModal.value = false;
+      renewPlanForm.value.startDate = '';
+      renewPlanForm.value.beneficiaryIds = [];
+      triggerToast('Membresía asignada/renovada correctamente.');
+      memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+    } else {
+      triggerToast('Error al asignar/renovar membresía.');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -1148,10 +1282,10 @@ const formattedNotes = computed(() => {
           </div>
 
           <!-- Filtros Compactos -->
-          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-900/40">
+          <div class="grid grid-cols-3 gap-2.5 pt-2 border-t border-gray-900/40">
             <div>
               <label class="block text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Membresía</label>
-              <select v-model="filterPlan" class="w-full saas-select">
+              <select v-model="filterPlan" class="w-full saas-select text-[10px] py-1">
                 <option value="ALL">Todos</option>
                 <option value="NONE">Sin plan</option>
                 <option v-for="plan in memberStore.plans" :key="plan.id" :value="plan.id">
@@ -1161,10 +1295,22 @@ const formattedNotes = computed(() => {
             </div>
             <div>
               <label class="block text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Estatus</label>
-              <select v-model="filterStatus" class="w-full saas-select">
+              <select v-model="filterStatus" class="w-full saas-select text-[10px] py-1">
                 <option value="ALL">Todos</option>
                 <option value="ACTIVE">Activos</option>
                 <option value="INACTIVE">Suspendidos</option>
+                <option value="EXPIRED">Vencidos</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1">Ordenar por</label>
+              <select v-model="sortBy" class="w-full saas-select text-[10px] py-1">
+                <option value="MEMBER_NUMBER_ASC">Socio (Menor a Mayor)</option>
+                <option value="MEMBER_NUMBER_DESC">Socio (Mayor a Menor)</option>
+                <option value="ALPHABETICAL_ASC">Alfabeto (A-Z Apellido)</option>
+                <option value="ALPHABETICAL_DESC">Alfabeto (Z-A Apellido)</option>
+                <option value="EXPIRATION_DATE_ASC">Vencimiento (Más Próximo)</option>
+                <option value="EXPIRATION_DATE_DESC">Vencimiento (Más Lejano)</option>
               </select>
             </div>
           </div>
@@ -1796,7 +1942,12 @@ const formattedNotes = computed(() => {
                     <td class="p-3 text-neutral-300 font-sans">{{ pay.paymentMethodName }}</td>
                     <td class="p-3 text-neutral-400">{{ formatDateTimeDDMMYYYY(pay.paymentDate) }}</td>
                     <td class="p-3 text-neutral-300 font-sans">{{ pay.processedByName || 'Cajero' }}</td>
-                    <td class="p-3 font-bold text-white">${{ pay.amount / 100 }} MXN</td>
+                    <td class="p-3 font-bold text-white">
+                      <div>${{ pay.amount / 100 }} MXN</div>
+                      <div v-if="pay.discount && pay.discount > 0" class="text-[9px] text-[#F59E0B] font-bold mt-0.5">
+                        (Desc: -${{ pay.discount / 100 }} MXN)
+                      </div>
+                    </td>
                     <td class="p-3">
                       <span 
                         class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border font-mono"
@@ -2252,9 +2403,10 @@ const formattedNotes = computed(() => {
             </button>
             <button 
               type="submit"
-              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
+              :disabled="isSubmitting"
+              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Guardar Cambios
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Cambios' }}
             </button>
           </div>
         </form>
@@ -2295,9 +2447,31 @@ const formattedNotes = computed(() => {
             <input v-model="paymentForm.referenceNumber" type="text" placeholder="Ej: Depósito, Ref. Bancaria" class="w-full saas-input" />
           </div>
 
+          <!-- Discount (Admins and Owners Only) -->
+          <div v-if="authStore.userRole === 'owner' || authStore.userRole === 'administrator'">
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Descuento Aplicado (MXN)</label>
+            <input 
+              v-model.number="paymentForm.discount" 
+              type="number" 
+              min="0" 
+              :max="getPlanPriceForSelected()" 
+              @input="onDiscountChange" 
+              class="w-full saas-input font-bold font-mono text-amber-500 text-sm" 
+              placeholder="0.00"
+            />
+          </div>
+
           <div>
             <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-2">Monto a Cobrar (MXN)</label>
-            <input v-model.number="paymentForm.amount" type="number" required min="0" step="0.01" class="w-full saas-input font-bold font-mono text-emerald-500 text-sm" />
+            <input 
+              v-model.number="paymentForm.amount" 
+              type="number" 
+              required 
+              min="0" 
+              step="0.01" 
+              :disabled="authStore.userRole === 'owner' || authStore.userRole === 'administrator'" 
+              class="w-full saas-input font-bold font-mono text-emerald-500 text-sm disabled:opacity-80" 
+            />
           </div>
 
           <div class="flex space-x-3 pt-4 border-t border-gray-900 justify-end">
@@ -2310,9 +2484,10 @@ const formattedNotes = computed(() => {
             </button>
             <button 
               type="submit"
-              class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
+              :disabled="isSubmitting"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Registrar Cobro
+              {{ isSubmitting ? 'Procesando...' : 'Registrar Cobro' }}
             </button>
           </div>
         </form>
@@ -2377,9 +2552,10 @@ const formattedNotes = computed(() => {
             </button>
             <button 
               type="submit"
-              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
+              :disabled="isSubmitting"
+              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Asignar Plan
+              {{ isSubmitting ? 'Procesando...' : 'Asignar Plan' }}
             </button>
           </div>
         </form>
@@ -2439,9 +2615,10 @@ const formattedNotes = computed(() => {
             </button>
             <button 
               type="submit"
-              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer"
+              :disabled="isSubmitting"
+              class="bg-[#F59E0B] hover:bg-[#d97706] text-black py-2 px-5 rounded-xl font-bold shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Guardar Cambios
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Cambios' }}
             </button>
           </div>
         </form>
@@ -2631,7 +2808,13 @@ const formattedNotes = computed(() => {
 
           <div class="flex justify-end space-x-3 pt-4 border-t border-gray-900/60">
             <button @click="showAddMemberModal = false" type="button" class="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-neutral-300 rounded-xl text-xs font-bold cursor-pointer transition-all border border-gray-800/60">Cancelar</button>
-            <button type="submit" class="px-5 py-2.5 bg-[#FA2F2A] hover:bg-[#d6201b] text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">Guardar Perfil</button>
+            <button 
+              type="submit"
+              :disabled="isSubmitting"
+              class="px-5 py-2.5 bg-[#FA2F2A] hover:bg-[#d6201b] text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Perfil' }}
+            </button>
           </div>
         </form>
       </div>

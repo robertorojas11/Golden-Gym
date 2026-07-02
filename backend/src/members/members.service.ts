@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { MockDatabase, Member } from '../mock-db';
 
@@ -7,19 +7,23 @@ export class MembersService {
   constructor(private db: MockDatabase) {}
 
   findAll() {
-    return this.db.members
-      .map((m) => {
-        const today = new Date().toISOString().split('T')[0];
-        const activeMembership = this.db.memberships.find(
-          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE' && ms.endDate >= today,
-        );
-        return {
-          ...m,
-          activePlanId: activeMembership?.planId || null,
-          activePlanName: activeMembership?.planName || null,
-          hasActiveMembership: !!activeMembership,
-        };
-      });
+    const today = new Date().toISOString().split('T')[0];
+    const activeMembershipsMap = new Map<string, any>();
+    for (const ms of this.db.memberships) {
+      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate >= today) {
+        activeMembershipsMap.set(ms.memberId, ms);
+      }
+    }
+
+    return this.db.members.map((m) => {
+      const activeMembership = activeMembershipsMap.get(m.id);
+      return {
+        ...m,
+        activePlanId: activeMembership?.planId || null,
+        activePlanName: activeMembership?.planName || null,
+        hasActiveMembership: !!activeMembership,
+      };
+    });
   }
 
   findOne(id: string): Member {
@@ -32,6 +36,15 @@ export class MembersService {
 
   search(query: string) {
     const q = query.toLowerCase();
+    const today = new Date().toISOString().split('T')[0];
+    
+    const activeMembershipsMap = new Map<string, any>();
+    for (const ms of this.db.memberships) {
+      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate >= today) {
+        activeMembershipsMap.set(ms.memberId, ms);
+      }
+    }
+
     return this.db.members
       .filter(
         (m) =>
@@ -42,10 +55,7 @@ export class MembersService {
             m.email?.toLowerCase().includes(q)),
       )
       .map((m) => {
-        const today = new Date().toISOString().split('T')[0];
-        const activeMembership = this.db.memberships.find(
-          (ms) => ms.memberId === m.id && ms.status === 'ACTIVE' && ms.endDate >= today,
-        );
+        const activeMembership = activeMembershipsMap.get(m.id);
         return {
           ...m,
           activePlanId: activeMembership?.planId || null,
@@ -56,6 +66,17 @@ export class MembersService {
   }
 
   async create(memberData: Partial<Member>, userId?: string): Promise<Member> {
+    // Check for exact duplicate member to avoid double-submit duplication
+    const duplicate = this.db.members.find(
+      (m) =>
+        m.firstName.trim().toLowerCase() === (memberData.firstName || '').trim().toLowerCase() &&
+        m.lastName.trim().toLowerCase() === (memberData.lastName || '').trim().toLowerCase() &&
+        m.birthDate === memberData.birthDate
+    );
+    if (duplicate) {
+      throw new BadRequestException('Ya existe un miembro registrado con el mismo nombre, apellido y fecha de nacimiento.');
+    }
+
     const nextNum = 1000 + this.db.members.length + 1;
     const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
     const newMember: Member = {

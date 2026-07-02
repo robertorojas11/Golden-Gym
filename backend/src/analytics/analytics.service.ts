@@ -5,6 +5,18 @@ import { MockDatabase } from '../mock-db';
 export class AnalyticsService {
   constructor(private db: MockDatabase) {}
 
+  private getLastMembershipPerMember() {
+    const lastMembershipsMap = new Map<string, any>();
+    // Sort ascending so the latest membership overwrites previous ones
+    const sortedMemberships = [...this.db.memberships].sort((a, b) => {
+      return a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate);
+    });
+    for (const m of sortedMemberships) {
+      lastMembershipsMap.set(m.memberId, m);
+    }
+    return lastMembershipsMap;
+  }
+
   getSummary() {
     const todayStr = new Date().toISOString().split('T')[0];
     const sevenDaysFromNow = new Date();
@@ -13,12 +25,15 @@ export class AnalyticsService {
 
     const activeMembers = this.db.members.filter((m) => m.isActive).length;
 
-    const activeMembershipsList = this.db.memberships.filter((m) => m.status === 'ACTIVE');
+    // Filter memberships list using only the last membership status of each member
+    const lastMemberships = Array.from(this.getLastMembershipPerMember().values());
+    const activeMembershipsList = lastMemberships.filter((m) => m.status === 'ACTIVE');
+    
     const expiringMemberships = activeMembershipsList.filter(
       (m) => m.endDate >= todayStr && m.endDate <= sevenDaysFromNowStr,
     ).length;
 
-    const expiredMemberships = this.db.memberships.filter((m) => m.status === 'EXPIRED').length;
+    const expiredMemberships = lastMemberships.filter((m) => m.status === 'EXPIRED').length;
 
     // Accesos de hoy
     const todayAccesses = this.db.accessLogs.filter((l) => {
@@ -84,11 +99,12 @@ export class AnalyticsService {
     });
 
     // 3. Distribución de membresías
+    const lastMemberships = Array.from(this.getLastMembershipPerMember().values());
     const distribution = [
-      { name: 'Activa', value: this.db.memberships.filter((m) => m.status === 'ACTIVE').length },
-      { name: 'Pendiente', value: this.db.memberships.filter((m) => m.status === 'PENDING').length },
-      { name: 'Expirada', value: this.db.memberships.filter((m) => m.status === 'EXPIRED').length },
-      { name: 'Cancelada', value: this.db.memberships.filter((m) => m.status === 'CANCELLED').length },
+      { name: 'Activa', value: lastMemberships.filter((m) => m.status === 'ACTIVE').length },
+      { name: 'Pendiente', value: lastMemberships.filter((m) => m.status === 'PENDING').length },
+      { name: 'Expirada', value: lastMemberships.filter((m) => m.status === 'EXPIRED').length },
+      { name: 'Cancelada', value: lastMemberships.filter((m) => m.status === 'CANCELLED').length },
     ];
 
     return {
@@ -104,6 +120,7 @@ export class AnalyticsService {
       const member = this.db.members.find((m) => m.id === p.memberId);
       return {
         id: p.id,
+        memberId: p.memberId,
         memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
         amount: p.amount / 100, // en MXN
         paymentDate: p.paymentDate,
@@ -121,6 +138,7 @@ export class AnalyticsService {
         const member = this.db.members.find((mem) => mem.id === m.memberId);
         return {
           id: m.id,
+          memberId: m.memberId,
           memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
           planName: m.planName,
           endDate: m.endDate,

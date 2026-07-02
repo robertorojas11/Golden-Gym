@@ -13,7 +13,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BiometricAgent")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+<<<<<<< HEAD
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c4727c4a133781e56f7ffefa45ae2d38de4c4cc1")]
+=======
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4c1b350c18d99693493e0d7cdb6732a7606c3fc7")]
+>>>>>>> 002ee1a (feat: enhance dashboard and member views with improved navigation and sorting options)
 [assembly: System.Reflection.AssemblyProductAttribute("BiometricAgent")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BiometricAgent")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

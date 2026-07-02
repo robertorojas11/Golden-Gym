@@ -51,6 +51,7 @@ export class PaymentsService {
     membershipId: string;
     paymentMethodId: string;
     amount: number;
+    discount?: number;
     referenceNumber?: string;
     processedBy: string;
   }): Promise<Payment> {
@@ -62,6 +63,22 @@ export class PaymentsService {
 
     if (ms.status !== 'PENDING') {
       throw new BadRequestException('La membresía ya se encuentra pagada, cancelada o vencida. Solo se pueden cobrar membresías pendientes.');
+    }
+
+    // Validate discount
+    const plan = this.db.plans.find((p) => p.id === ms.planId);
+    if (!plan) {
+      throw new NotFoundException('Membership plan not found');
+    }
+    const discount = paymentData.discount || 0;
+    if (discount < 0) {
+      throw new BadRequestException('El descuento no puede ser negativo.');
+    }
+    if (discount > plan.price) {
+      throw new BadRequestException('El descuento no puede ser mayor al precio de la membresía.');
+    }
+    if (paymentData.amount !== (plan.price - discount)) {
+      throw new BadRequestException('El monto pagado debe corresponder al precio del plan menos el descuento.');
     }
 
     // Resolve payment method name
@@ -77,6 +94,7 @@ export class PaymentsService {
       paymentMethodId: paymentData.paymentMethodId,
       paymentMethodName: methodName,
       amount: paymentData.amount,
+      discount: discount,
       referenceNumber: paymentData.referenceNumber || `REF-${Math.floor(1000000 + Math.random() * 9000000)}`,
       paymentDate: new Date().toISOString(),
       status: 'PAID',

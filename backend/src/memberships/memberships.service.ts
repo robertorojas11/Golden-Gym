@@ -10,11 +10,20 @@ export class MembershipsService {
     return this.db.plans;
   }
 
-  findMemberMemberships(memberId: string): Membership[] {
-    return this.db.memberships.filter((m) => m.memberId === memberId);
+  async findMemberMemberships(memberId: string): Promise<any[]> {
+    await this.db.updateExpiredMemberships();
+    const list = this.db.memberships.filter((m) => m.memberId === memberId);
+    return list.map((m) => {
+      const children = this.db.memberships.filter((child) => child.parentMembershipId === m.id);
+      return {
+        ...m,
+        beneficiaryIds: children.map((child) => child.memberId),
+      };
+    });
   }
 
-  findActiveMembership(memberId: string): Membership | undefined {
+  async findActiveMembership(memberId: string): Promise<Membership | undefined> {
+    await this.db.updateExpiredMemberships();
     const today = new Date().toISOString().split('T')[0];
     return this.db.memberships.find(
       (m) =>
@@ -26,6 +35,7 @@ export class MembershipsService {
   }
 
   async assignPlan(memberId: string, planId: string, customStartDate?: string, additionalMemberIds?: string[]): Promise<Membership> {
+    await this.db.updateExpiredMemberships();
     const plan = this.db.plans.find((p) => p.id === planId);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
@@ -77,7 +87,7 @@ export class MembershipsService {
       }
     }
 
-    const active = this.findActiveMembership(memberId);
+    const active = await this.findActiveMembership(memberId);
     let startDateStr = customStartDate || new Date().toISOString().split('T')[0];
 
     if (active && !customStartDate) {
@@ -92,8 +102,8 @@ export class MembershipsService {
     // Count Sundays to calculate end date (standard calendar days)
     endDate.setDate(startDate.getDate() + plan.durationDays);
 
-    // If start date is in the past (migration of old users), auto-activate without pending payment
-    const isPastDate = startDateStr < todayStr;
+    // Auto-activate ONLY if the custom start date is BEFORE the system start date (2026-06-29) - i.e. migrated old members
+    const isMigratedDate = startDateStr < '2026-06-29';
     const mainMember = this.db.members.find((m) => m.id === memberId);
     const noPaidRequired = mainMember?.noPaymentRequired === true;
 
@@ -104,7 +114,7 @@ export class MembershipsService {
       planName: plan.name,
       startDate: startDateStr,
       endDate: endDate.toISOString().split('T')[0],
-      status: (isPastDate || noPaidRequired) ? 'ACTIVE' : 'PENDING',
+      status: (isMigratedDate || noPaidRequired) ? 'ACTIVE' : 'PENDING',
     };
 
     this.db.memberships.push(newMembership);
@@ -204,7 +214,8 @@ export class MembershipsService {
     return ms;
   }
 
-  findAllMemberships(): Membership[] {
+  async findAllMemberships(): Promise<Membership[]> {
+    await this.db.updateExpiredMemberships();
     return this.db.memberships;
   }
 }
