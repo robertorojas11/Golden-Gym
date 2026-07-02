@@ -37,3 +37,6 @@ Thumbs.db
 **/bin/
 **/obj/
 
+# Local database backups
+database/backups/
+
