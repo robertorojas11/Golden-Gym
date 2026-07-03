@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Membership, MembershipPlan } from '../mock-db';
+import { MockDatabase, Membership, MembershipPlan, getMXDate } from '../mock-db';
 
 @Injectable()
 export class MembershipsService {
@@ -24,7 +24,7 @@ export class MembershipsService {
 
   async findActiveMembership(memberId: string): Promise<Membership | undefined> {
     await this.db.updateExpiredMemberships();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMXDate();
     return this.db.memberships.find(
       (m) =>
         m.memberId === memberId &&
@@ -42,7 +42,7 @@ export class MembershipsService {
     }
 
     // Check if there is already an active membership.
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getMXDate();
     const activePlan = this.db.memberships.find(
       (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate >= todayStr
     );
@@ -88,19 +88,17 @@ export class MembershipsService {
     }
 
     const active = await this.findActiveMembership(memberId);
-    let startDateStr = customStartDate || new Date().toISOString().split('T')[0];
+    let startDateStr = customStartDate || getMXDate();
 
     if (active && !customStartDate) {
-      const activeEndDate = new Date(active.endDate);
+      const activeEndDate = new Date(active.endDate + 'T00:00:00');
       activeEndDate.setDate(activeEndDate.getDate() + 1);
-      startDateStr = activeEndDate.toISOString().split('T')[0];
+      startDateStr = getMXDate(activeEndDate);
     }
 
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(startDateStr);
-    
-    // Count Sundays to calculate end date (standard calendar days)
-    endDate.setDate(startDate.getDate() + plan.durationDays);
+    const startDateVal = new Date(startDateStr + 'T00:00:00');
+    const endDateVal = new Date(startDateVal.getTime());
+    endDateVal.setDate(endDateVal.getDate() + plan.durationDays);
 
     // Auto-activate ONLY if the custom start date is BEFORE the system start date (2026-06-29) - i.e. migrated old members
     const isMigratedDate = startDateStr < '2026-06-29';
@@ -113,7 +111,7 @@ export class MembershipsService {
       planId,
       planName: plan.name,
       startDate: startDateStr,
-      endDate: endDate.toISOString().split('T')[0],
+      endDate: getMXDate(endDateVal),
       status: (isMigratedDate || noPaidRequired) ? 'ACTIVE' : 'PENDING',
     };
 

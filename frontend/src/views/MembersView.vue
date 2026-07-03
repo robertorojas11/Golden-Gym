@@ -326,6 +326,22 @@ const filteredMembers = computed(() => {
     return true;
   });
 
+  // Precalculate expiration dates to avoid nested lookups during sort comparisons
+  const expirationCache = new Map<string, string>();
+  if (sortBy.value === 'EXPIRATION_DATE_ASC' || sortBy.value === 'EXPIRATION_DATE_DESC') {
+    for (const m of list) {
+      const ms = memberStore.activeMemberships.find((x: any) => x.memberId === m.id && x.status === 'ACTIVE');
+      if (ms) {
+        expirationCache.set(m.id, ms.endDate);
+      } else {
+        const lastMs = [...memberStore.activeMemberships]
+          .filter((x: any) => x.memberId === m.id)
+          .sort((x: any, y: any) => y.endDate.localeCompare(x.endDate))[0];
+        expirationCache.set(m.id, lastMs ? lastMs.endDate : '9999-12-31');
+      }
+    }
+  }
+
   // Sort list
   list = [...list].sort((a: any, b: any) => {
     if (sortBy.value === 'ALPHABETICAL_ASC') {
@@ -345,17 +361,8 @@ const filteredMembers = computed(() => {
       return numB - numA;
     }
     if (sortBy.value === 'EXPIRATION_DATE_ASC' || sortBy.value === 'EXPIRATION_DATE_DESC') {
-      const getExpiration = (member: any) => {
-        const ms = memberStore.activeMemberships.find((m: any) => m.memberId === member.id && m.status === 'ACTIVE');
-        if (ms) return ms.endDate;
-        const lastMs = [...memberStore.activeMemberships]
-          .filter((m: any) => m.memberId === member.id)
-          .sort((x: any, y: any) => y.endDate.localeCompare(x.endDate))[0];
-        return lastMs ? lastMs.endDate : '9999-12-31';
-      };
-
-      const dateA = getExpiration(a);
-      const dateB = getExpiration(b);
+      const dateA = expirationCache.get(a.id) || '9999-12-31';
+      const dateB = expirationCache.get(b.id) || '9999-12-31';
       
       if (sortBy.value === 'EXPIRATION_DATE_ASC') {
         return dateA.localeCompare(dateB);
@@ -1037,7 +1044,17 @@ const numBeneficiariesNeeded = computed(() => {
 
 const eligibleBeneficiaries = computed(() => {
   if (!memberStore.selectedMember) return [];
-  return memberStore.members.filter((m: any) => m.id !== memberStore.selectedMember.id && m.isActive !== false);
+  return memberStore.members.filter((m: any) => {
+    if (m.id === memberStore.selectedMember.id) return false;
+    if (m.isActive === false) return false;
+    
+    // Find memberships for this member
+    const mMemberships = memberStore.activeMemberships.filter((ms: any) => ms.memberId === m.id);
+    if (mMemberships.length === 0) return true; // Without plan
+    
+    const latestMs = [...mMemberships].sort((a: any, b: any) => b.endDate.localeCompare(a.endDate))[0];
+    return latestMs.status === 'EXPIRED' || latestMs.status === 'CANCELLED';
+  });
 });
 
 function openRenewPlanModal() {

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, AccessLog, Member } from '../mock-db';
+import { MockDatabase, AccessLog, Member, getMXDate, getMXTimestamp } from '../mock-db';
 
 @Injectable()
 export class BiometricsService {
@@ -36,7 +36,8 @@ export class BiometricsService {
         failureReason = 'MIEMBRO_NO_ENCONTRADO';
       } else {
         // Validar estatus de membresía activa
-        const today = new Date().toISOString().split('T')[0];
+        await this.db.updateExpiredMemberships();
+        const today = getMXDate();
         const activeMembership = this.db.memberships.find(
           (m) => m.memberId === member!.id && m.status === 'ACTIVE' && m.endDate >= today,
         );
@@ -71,13 +72,13 @@ export class BiometricsService {
         : 'N/A',
       accessGranted,
       failureReason,
-      scannedAt: new Date().toISOString(),
+      scannedAt: getMXTimestamp(),
     };
 
     // Registrar bitácora de acceso (solo si es la primera del día para este miembro)
     let duplicateCheck = false;
     if (member && accessGranted) {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getMXDate();
       duplicateCheck = this.db.accessLogs.some(
         (log) => log.memberId === member.id && log.accessGranted && log.scannedAt.startsWith(todayStr),
       );
@@ -106,7 +107,7 @@ export class BiometricsService {
     if (memberId) {
       return this.db.accessLogs.filter((log) => log.memberId === memberId);
     }
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getMXDate();
     return this.db.accessLogs.filter((log) => log.scannedAt && log.scannedAt.startsWith(todayStr));
   }
 

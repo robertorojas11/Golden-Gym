@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Payment, Membership } from '../mock-db';
+import { MockDatabase, Payment, Membership, getMXTimestamp } from '../mock-db';
 
 @Injectable()
 export class PaymentsService {
@@ -54,7 +54,7 @@ export class PaymentsService {
     discount?: number;
     referenceNumber?: string;
     processedBy: string;
-  }): Promise<Payment> {
+  }): Promise<any> {
     // Check if membership exists
     const ms = this.db.memberships.find((m) => m.id === paymentData.membershipId);
     if (!ms) {
@@ -96,7 +96,7 @@ export class PaymentsService {
       amount: paymentData.amount,
       discount: discount,
       referenceNumber: paymentData.referenceNumber || `REF-${Math.floor(1000000 + Math.random() * 9000000)}`,
-      paymentDate: new Date().toISOString(),
+      paymentDate: getMXTimestamp(),
       status: 'PAID',
       processedBy: paymentData.processedBy,
     };
@@ -118,7 +118,18 @@ export class PaymentsService {
       await this.db.saveMembership(child);
     }
 
-    return newPayment;
+    const member = this.db.members.find((m) => m.id === newPayment.memberId);
+    const beneficiaries = children.map((c) => {
+      const m = this.db.members.find((mem) => mem.id === c.memberId);
+      return m ? `${m.firstName} ${m.lastName}` : 'Desconocido';
+    });
+
+    return {
+      ...newPayment,
+      memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
+      memberNumber: member ? member.memberNumber : 'N/A',
+      beneficiaries,
+    };
   }
 
 

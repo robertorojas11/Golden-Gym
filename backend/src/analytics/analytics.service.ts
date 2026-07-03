@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MockDatabase } from '../mock-db';
+import { MockDatabase, getMXDate } from '../mock-db';
 
 @Injectable()
 export class AnalyticsService {
@@ -18,10 +18,10 @@ export class AnalyticsService {
   }
 
   getSummary() {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getMXDate();
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const sevenDaysFromNowStr = sevenDaysFromNow.toISOString().split('T')[0];
+    const sevenDaysFromNowStr = getMXDate(sevenDaysFromNow);
 
     const activeMembers = this.db.members.filter((m) => m.isActive).length;
 
@@ -75,7 +75,7 @@ export class AnalyticsService {
     const dailyAccesses = dayNames.map((name, index) => {
       const dayDate = new Date(monday);
       dayDate.setDate(monday.getDate() + index);
-      const dayStr = dayDate.toISOString().split('T')[0];
+      const dayStr = getMXDate(dayDate);
 
       const count = this.db.accessLogs.filter((log) => {
         return log.scannedAt.startsWith(dayStr) && log.accessGranted;
@@ -129,7 +129,7 @@ export class AnalyticsService {
       };
     });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMXDate();
     const upcomingExpirations = this.db.memberships
       .filter((m) => m.status === 'ACTIVE' && m.endDate >= today)
       .sort((a, b) => a.endDate.localeCompare(b.endDate))

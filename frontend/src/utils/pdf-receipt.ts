@@ -61,15 +61,18 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   doc.setFont('Helvetica', 'bold');
   doc.text('Socio:', 8, 54);
   doc.setFont('Helvetica', 'normal');
-  doc.text(`${member.firstName} ${member.lastName}`, 8, 58);
-  doc.text(`Folio Socio: ${member.memberNumber || 'N/A'}`, 8, 62);
+  const payerName = payment.memberName || `${member.firstName} ${member.lastName}`;
+  const payerNumber = payment.memberNumber || member.memberNumber || 'N/A';
+  doc.text(payerName, 8, 58);
+  doc.text(`Folio Socio: ${payerNumber}`, 8, 62);
 
   let currentY = 62;
-  if (beneficiaries && beneficiaries.length > 0) {
+  const bens = payment.beneficiaries || beneficiaries;
+  if (bens && bens.length > 0) {
     doc.setFont('Helvetica', 'bold');
     doc.text('Beneficiarios:', 8, 66);
     doc.setFont('Helvetica', 'normal');
-    doc.text(beneficiaries.join(', '), 8, 70);
+    doc.text(bens.join(', '), 8, 70);
     currentY = 70;
   }
   

@@ -1,13 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Member } from '../mock-db';
+import { MockDatabase, Member, getMXDate } from '../mock-db';
 
 @Injectable()
 export class MembersService {
   constructor(private db: MockDatabase) {}
 
   findAll() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMXDate();
     const activeMembershipsMap = new Map<string, any>();
     for (const ms of this.db.memberships) {
       if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate >= today) {
@@ -36,7 +36,7 @@ export class MembersService {
 
   search(query: string) {
     const q = query.toLowerCase();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMXDate();
     
     const activeMembershipsMap = new Map<string, any>();
     for (const ms of this.db.memberships) {
@@ -77,7 +77,18 @@ export class MembersService {
       throw new BadRequestException('Ya existe un miembro registrado con el mismo nombre, apellido y fecha de nacimiento.');
     }
 
-    const nextNum = 1000 + this.db.members.length + 1;
+    // Get maximum existing member number suffix to skip deleted/existing gaps
+    let maxNum = 1000;
+    for (const m of this.db.members) {
+      const match = m.memberNumber.match(/(\d+)/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (val > maxNum) {
+          maxNum = val;
+        }
+      }
+    }
+    const nextNum = maxNum + 1;
     const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
     const newMember: Member = {
       id: randomUUID(),
@@ -96,7 +107,7 @@ export class MembersService {
       emergencyContactName: memberData.emergencyContactName || '',
       emergencyContactPhone: memberData.emergencyContactPhone || '',
       emergencyContactRelationship: memberData.emergencyContactRelationship || '',
-      registrationDate: new Date().toISOString().split('T')[0],
+      registrationDate: getMXDate(),
       isActive: true,
       noPaymentRequired: memberData.noPaymentRequired === true,
       photoUrl: memberData.photoUrl || '',

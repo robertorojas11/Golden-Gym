@@ -1,6 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
+
+export function getMXDate(dateInput: Date = new Date()): string {
+  const localStr = dateInput.toLocaleString('sv', { timeZone: 'America/Mexico_City' });
+  return localStr.split(' ')[0];
+}
+
+export function getMXTimestamp(dateInput: Date = new Date()): string {
+  const localStr = dateInput.toLocaleString('sv', { timeZone: 'America/Mexico_City' });
+  return localStr.replace(' ', 'T');
+}
 
 export interface User {
   id: string;
@@ -191,20 +201,51 @@ export class MockDatabase implements OnModuleInit {
   }
 
   async updateExpiredMemberships() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMXDate();
     if (this.memberships) {
+      const newRenewals: any[] = [];
       for (const m of this.memberships) {
         if (m.status === 'ACTIVE' && m.endDate < today) {
           m.status = 'EXPIRED';
+          await this.saveMembership(m);
+
+          // Check for auto-renewal of members with "noPaymentRequired === true"
+          const member = this.members.find((x) => x.id === m.memberId);
+          if (member && member.noPaymentRequired) {
+            const plan = this.plans.find((p) => p.id === m.planId);
+            if (plan) {
+              const startDateStr = m.endDate;
+              const startVal = new Date(startDateStr + 'T00:00:00');
+              const endVal = new Date(startVal.getTime());
+              endVal.setDate(endVal.getDate() + plan.durationDays);
+              const endDateStr = getMXDate(endVal);
+
+              const newMs = {
+                id: randomUUID(),
+                memberId: m.memberId,
+                planId: m.planId,
+                planName: plan.name,
+                startDate: startDateStr,
+                endDate: endDateStr,
+                status: 'ACTIVE' as const,
+              };
+              newRenewals.push(newMs);
+            }
+          }
         }
+      }
+
+      for (const r of newRenewals) {
+        this.memberships.push(r);
+        await this.saveMembership(r);
       }
     }
     try {
       await this.pool.query(`
         UPDATE memberships 
         SET status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP 
-        WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE
-      `);
+        WHERE status = 'ACTIVE' AND end_date < $1
+      `, [today]);
     } catch (e) {
       console.warn('Could not auto-expire memberships in database:', e);
     }
@@ -268,7 +309,7 @@ export class MockDatabase implements OnModuleInit {
         firstName: row.first_name,
         lastName: row.last_name,
         gender: row.gender,
-        birthDate: row.birth_date ? row.birth_date.toISOString().split('T')[0] : '',
+        birthDate: row.birth_date ? getMXDate(row.birth_date) : '',
         email: row.email,
         phone: row.phone,
         street: row.street,
@@ -279,7 +320,7 @@ export class MockDatabase implements OnModuleInit {
         emergencyContactName: row.emergency_contact_name,
         emergencyContactPhone: row.emergency_contact_phone,
         emergencyContactRelationship: row.emergency_contact_relationship,
-        registrationDate: row.registration_date ? row.registration_date.toISOString().split('T')[0] : '',
+        registrationDate: row.registration_date ? getMXDate(row.registration_date) : '',
         isActive: row.is_active,
         noPaymentRequired: row.no_payment_required || false,
         photoUrl: photo ? photo.photo_url : '',
@@ -298,8 +339,8 @@ export class MockDatabase implements OnModuleInit {
         memberId: row.member_id,
         planId: row.plan_id,
         planName: plan ? plan.name : 'Membresía',
-        startDate: row.start_date ? row.start_date.toISOString().split('T')[0] : '',
-        endDate: row.end_date ? row.end_date.toISOString().split('T')[0] : '',
+        startDate: row.start_date ? getMXDate(row.start_date) : '',
+        endDate: row.end_date ? getMXDate(row.end_date) : '',
         status: row.status,
         parentMembershipId: row.parent_membership_id || undefined,
       };
@@ -320,7 +361,7 @@ export class MockDatabase implements OnModuleInit {
         amount: row.amount,
         discount: row.discount || 0,
         referenceNumber: row.reference_number,
-        paymentDate: row.payment_date ? row.payment_date.toISOString() : '',
+        paymentDate: row.payment_date ? getMXTimestamp(row.payment_date) : '',
         status: row.status,
         processedBy: row.processed_by,
         processedByName: user ? `${user.firstName} ${user.lastName}` : 'Personal',
@@ -342,7 +383,7 @@ export class MockDatabase implements OnModuleInit {
         membershipEndDate: ms ? ms.endDate : 'N/A',
         accessGranted: row.access_granted,
         failureReason: row.failure_reason,
-        scannedAt: row.scanned_at ? row.scanned_at.toISOString() : '',
+        scannedAt: row.scanned_at ? getMXTimestamp(row.scanned_at) : '',
       };
     });
 
