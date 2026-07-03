@@ -1042,13 +1042,29 @@ const numBeneficiariesNeeded = computed(() => {
   return (selectedPlanDetails.value.maxMembers || 2) - 1;
 });
 
+function getLastMembership() {
+  if (!memberStore.activeMemberships || memberStore.activeMemberships.length === 0) return null;
+  const membershipsCopy = [...memberStore.activeMemberships];
+  membershipsCopy.sort((a: any, b: any) => {
+    return b.endDate.localeCompare(a.endDate) || b.startDate.localeCompare(a.startDate);
+  });
+  return membershipsCopy[0];
+}
+
 const eligibleBeneficiaries = computed(() => {
   if (!memberStore.selectedMember) return [];
   return memberStore.members.filter((m: any) => {
-    if (m.id === memberStore.selectedMember.id) return false;
+    let mainId = memberStore.selectedMember.id;
+    const lastMs = getLastMembership();
+    const plan = memberStore.plans.find((p: any) => p.id === renewPlanForm.value.planId);
+    if (lastMs && lastMs.groupParentMemberId && plan?.isGroup) {
+      mainId = lastMs.groupParentMemberId;
+    }
+
+    if (m.id === mainId) return false;
+    if (renewPlanForm.value.beneficiaryIds.includes(m.id)) return true;
     if (m.isActive === false) return false;
     
-    // Find memberships for this member
     const mMemberships = memberStore.activeMemberships.filter((ms: any) => ms.memberId === m.id);
     if (mMemberships.length === 0) return true; // Without plan
     
@@ -1060,13 +1076,7 @@ const eligibleBeneficiaries = computed(() => {
 function openRenewPlanModal() {
   if (!memberStore.selectedMember) return;
   
-  // Find the last membership sorted descending by end date
-  const membershipsCopy = [...memberStore.activeMemberships];
-  membershipsCopy.sort((a: any, b: any) => {
-    return b.endDate.localeCompare(a.endDate) || b.startDate.localeCompare(a.startDate);
-  });
-  
-  const lastMembership = membershipsCopy[0];
+  const lastMembership = getLastMembership();
   if (lastMembership) {
     renewPlanForm.value.planId = lastMembership.planId;
     renewPlanForm.value.beneficiaryIds = lastMembership.beneficiaryIds ? [...lastMembership.beneficiaryIds] : [];
@@ -1084,18 +1094,31 @@ async function handleRenewPlan() {
   isSubmitting.value = true;
   try {
     const additionalIds = renewPlanForm.value.beneficiaryIds.filter(id => !!id);
+    
+    let mainMemberId = memberStore.selectedMember.id;
+    let finalBeneficiaryIds = [...additionalIds];
+    
+    const lastMembership = getLastMembership();
+    if (lastMembership && lastMembership.groupParentMemberId) {
+      const plan = memberStore.plans.find((p: any) => p.id === renewPlanForm.value.planId);
+      if (plan && plan.isGroup) {
+        mainMemberId = lastMembership.groupParentMemberId;
+        finalBeneficiaryIds = finalBeneficiaryIds.filter(id => id !== mainMemberId);
+      }
+    }
+    
     const success = await memberStore.assignMembership(
-      memberStore.selectedMember.id, 
+      mainMemberId, 
       renewPlanForm.value.planId,
       renewPlanForm.value.startDate || undefined,
-      additionalIds
+      finalBeneficiaryIds
     );
     if (success) {
       showRenewPlanModal.value = false;
       renewPlanForm.value.startDate = '';
       renewPlanForm.value.beneficiaryIds = [];
       triggerToast('Membresía asignada/renovada correctamente.');
-      memberStore.fetchMemberDetail(memberStore.selectedMember.id);
+      await memberStore.fetchMemberDetail(memberStore.selectedMember.id);
     } else {
       triggerToast('Error al asignar/renovar membresía.');
     }

@@ -14,9 +14,17 @@ export class MembershipsService {
     await this.db.updateExpiredMemberships();
     const list = this.db.memberships.filter((m) => m.memberId === memberId);
     return list.map((m) => {
-      const children = this.db.memberships.filter((child) => child.parentMembershipId === m.id);
+      let parentMs = m;
+      if (m.parentMembershipId) {
+        const foundParent = this.db.memberships.find((x) => x.id === m.parentMembershipId);
+        if (foundParent) {
+          parentMs = foundParent;
+        }
+      }
+      const children = this.db.memberships.filter((child) => child.parentMembershipId === parentMs.id);
       return {
         ...m,
+        groupParentMemberId: parentMs.memberId,
         beneficiaryIds: children.map((child) => child.memberId),
       };
     });
