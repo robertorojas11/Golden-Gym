@@ -1,14 +1,46 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 import { createHash, randomUUID } from 'crypto';
 
-export function getMXDate(dateInput: Date = new Date()): string {
+// Override the parsing of PostgreSQL DATE type (OID 1082) to keep it as a raw string 'YYYY-MM-DD'.
+// This prevents the node-postgres driver from parsing DATE to a local/UTC Date object,
+// which shifts the date value by one day due to timezone conversions.
+types.setTypeParser(1082, (val) => val);
+
+export function getMXDate(dateInput: Date | string = new Date()): string {
+  if (typeof dateInput === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      return dateInput;
+    }
+    if (dateInput.includes('T') || dateInput.includes(' ')) {
+      dateInput = new Date(dateInput);
+    } else {
+      dateInput = new Date(dateInput + 'T00:00:00');
+    }
+  }
   const localStr = dateInput.toLocaleString('sv', { timeZone: 'America/Mexico_City' });
   return localStr.split(' ')[0];
 }
 
-export function getMXTimestamp(dateInput: Date = new Date()): string {
-  const localStr = dateInput.toLocaleString('sv', { timeZone: 'America/Mexico_City' });
+export function getMXTimestamp(dateInput: Date | string = new Date()): string {
+  let date: Date;
+  if (typeof dateInput === 'string') {
+    if (dateInput.includes('T') || dateInput.includes(' ')) {
+      if (dateInput.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(dateInput)) {
+        date = new Date(dateInput);
+      } else {
+        if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
+          return dateInput.replace(' ', 'T').substring(0, 19);
+        }
+        date = new Date(dateInput);
+      }
+    } else {
+      date = new Date(dateInput);
+    }
+  } else {
+    date = dateInput;
+  }
+  const localStr = date.toLocaleString('sv', { timeZone: 'America/Mexico_City' });
   return localStr.replace(' ', 'T');
 }
 

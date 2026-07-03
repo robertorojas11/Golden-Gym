@@ -1176,9 +1176,10 @@ const membershipProgress = computed(() => {
   const plan = memberStore.plans.find((p: any) => p.id === activeMs.planId);
   const totalDays = plan ? plan.durationDays : 30;
   
-  const todayStr = new Date().toISOString().split('T')[0];
-  const start = new Date(activeMs.startDate);
-  const end = new Date(todayStr);
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const start = new Date(activeMs.startDate + 'T00:00:00');
+  const end = new Date(todayStr + 'T00:00:00');
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
   const diffTime = Math.max(0, end.getTime() - start.getTime());

@@ -223,7 +223,9 @@ async function generateReport() {
   doc.text(`Total de registros: ${filteredPayments.value.length}`, 14, y);
   doc.text(`Ingreso Total Neto: $${totalSum.toFixed(2)} MXN`, 201, y, { align: 'right' });
 
-  doc.save(`Reporte_Pagos_${new Date().toISOString().split('T')[0]}.pdf`);
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  doc.save(`Reporte_Pagos_${dateStr}.pdf`);
 }
 </script>
 

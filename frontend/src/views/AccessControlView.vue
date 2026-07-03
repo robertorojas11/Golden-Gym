@@ -242,7 +242,7 @@ onUnmounted(() => {
         <div class="lg:col-span-4 space-y-6 flex flex-col">
           
           <!-- Tarjeta de Controles de Registro Manual -->
-          <div v-if="authStore.hasPermission('manage:access')" class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
+          <div v-if="authStore.hasPermission('manage:access') && authStore.userRole !== 'clock'" class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl space-y-4">
             <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Asistencia Manual</h3>
             
             <div class="space-y-4 pt-1">
@@ -317,7 +317,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Historial de accesos -->
-          <div class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl max-h-[350px] overflow-y-auto flex-grow flex flex-col">
+          <div v-if="authStore.userRole !== 'clock'" class="p-6 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-xl max-h-[350px] overflow-y-auto flex-grow flex flex-col">
             <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Entradas de Hoy</h3>
             
             <div class="space-y-4 overflow-y-auto flex-grow pr-1">
