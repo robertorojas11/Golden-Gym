@@ -227,7 +227,8 @@ export const useBiometricStore = defineStore('biometric', () => {
   function connectToAgent() {
     if (typeof window === 'undefined') return;
     
-    agentWS = new WebSocket('ws://localhost:9000');
+    const wsHost = window.location.hostname || 'localhost';
+    agentWS = new WebSocket(`ws://${wsHost}:9000`);
     
     agentWS.onopen = () => {
       isAgentConnected.value = true;

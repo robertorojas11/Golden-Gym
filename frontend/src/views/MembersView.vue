@@ -805,7 +805,8 @@ function connectToEnrollAgent() {
     enrollWS.close();
   }
 
-  enrollWS = new WebSocket('ws://localhost:9000');
+  const wsHost = window.location.hostname || 'localhost';
+  enrollWS = new WebSocket(`ws://${wsHost}:9000`);
 
   enrollWS.onopen = () => {
     enrollStep.value = 'ready';
