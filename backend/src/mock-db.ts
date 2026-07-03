@@ -176,6 +176,27 @@ export class MockDatabase implements OnModuleInit {
         `);
         await this.pool.query('CREATE INDEX IF NOT EXISTS idx_member_fingerprints_member ON member_fingerprints(member_id) WHERE deleted_at IS NULL');
 
+        // Ensure clock role exists
+        await this.pool.query(`
+          INSERT INTO roles (id, name, description)
+          VALUES ('5a7b9c1d-3e55-8877-bbdd-ccddeeff0005', 'clock', 'Reloj checador - Únicamente vista de control de acceso')
+          ON CONFLICT (id) DO NOTHING
+        `);
+
+        // Link manage:access permission to clock role
+        await this.pool.query(`
+          INSERT INTO role_permissions (role_id, permission_id)
+          VALUES ('5a7b9c1d-3e55-8877-bbdd-ccddeeff0005', 'f99066d4-d3a9-4674-9f20-fa7d1be275de')
+          ON CONFLICT DO NOTHING
+        `);
+
+        // Ensure clock user exists
+        await this.pool.query(`
+          INSERT INTO users (id, email, password_hash, first_name, last_name, role_id, is_active, must_change_password)
+          VALUES ('55555555-5555-5555-5555-555555555555', 'clock@golden.com', 'f6467178e06362ac0b6afedea6c7a008ae29d7437435291bb9a7a8e2fe3d4975', 'Reloj', 'Checador', '5a7b9c1d-3e55-8877-bbdd-ccddeeff0005', TRUE, FALSE)
+          ON CONFLICT (id) DO NOTHING
+        `);
+
         connected = true;
         break;
       } catch (err) {
@@ -429,6 +450,18 @@ export class MockDatabase implements OnModuleInit {
         permissions: ['create:users', 'manage:memberships', 'manage:payments', 'manage:access', 'view:reports', 'system:config'],
         isActive: true,
         mustChangePassword: true,
+      },
+      {
+        id: '55555555-5555-5555-5555-555555555555',
+        email: 'clock@golden.com',
+        passwordHash: createHash('sha256').update('Golden#2026').digest('hex'),
+        firstName: 'Reloj',
+        lastName: 'Checador',
+        roleId: '5a7b9c1d-3e55-8877-bbdd-ccddeeff0005',
+        roleName: 'clock',
+        permissions: ['manage:access'],
+        isActive: true,
+        mustChangePassword: false,
       },
     ];
   }

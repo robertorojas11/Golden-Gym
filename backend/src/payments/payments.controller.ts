@@ -10,15 +10,26 @@ export class PaymentsController {
   constructor(private service: PaymentsService) {}
 
   @Get()
-  @RequirePermissions('view:reports')
-  findAll() {
+  @RequirePermissions('manage:access')
+  findAll(@Req() req: any) {
+    const userRole = req.user?.roleName || 'receptionist';
+    const userId = req.user?.id;
+    if (userRole === 'receptionist') {
+      return this.service.findByUser(userId);
+    }
     return this.service.findAll();
   }
 
   @Get('member/:memberId')
   @RequirePermissions('manage:access')
-  findMemberPayments(@Param('memberId') memberId: string) {
-    return this.service.findMemberPayments(memberId);
+  findMemberPayments(@Param('memberId') memberId: string, @Req() req: any) {
+    const userRole = req.user?.roleName || 'receptionist';
+    const userId = req.user?.id;
+    const list = this.service.findMemberPayments(memberId);
+    if (userRole === 'receptionist') {
+      return list.filter((p) => p.processedBy === userId);
+    }
+    return list;
   }
 
   @Post()

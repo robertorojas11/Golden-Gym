@@ -137,6 +137,9 @@ export class AuthService {
     if (lower === 'receptionist' || lower === 'recepcionista') {
       return { id: '3a5b7c9d-1e33-6655-aacc-88ee99ff0003', name: 'receptionist' };
     }
+    if (lower === 'clock') {
+      return { id: '5a7b9c1d-3e55-8877-bbdd-ccddeeff0005', name: 'clock' };
+    }
     return { id: '4a6b8c0d-2e44-7766-bbdd-99ff00aa1104', name: 'viewer' };
   }
 
@@ -149,6 +152,9 @@ export class AuthService {
     }
     if (roleId === '3a5b7c9d-1e33-6655-aacc-88ee99ff0003') {
       return ['manage:access', 'manage:memberships'];
+    }
+    if (roleId === '5a7b9c1d-3e55-8877-bbdd-ccddeeff0005') {
+      return ['manage:access'];
     }
     return ['view:reports'];
   }

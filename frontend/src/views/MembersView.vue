@@ -305,7 +305,24 @@ const sortBy = ref('MEMBER_NUMBER_ASC');
 
 const filteredMembers = computed(() => {
   let list = memberStore.members.filter((m: any) => {
-    // 1. Filtro de plan
+    // 1. Filtro de búsqueda (local e instantánea)
+    const q = searchQuery.value.toLowerCase().trim();
+    if (q) {
+      const firstName = (m.firstName || '').toLowerCase();
+      const lastName = (m.lastName || '').toLowerCase();
+      const memberNumber = (m.memberNumber || '').toLowerCase();
+      const phone = (m.phone || '').toLowerCase();
+      const email = (m.email || '').toLowerCase();
+      
+      if (!firstName.includes(q) &&
+          !lastName.includes(q) &&
+          !memberNumber.includes(q) &&
+          !phone.includes(q) &&
+          !email.includes(q)) {
+        return false;
+      }
+    }
+    // 2. Filtro de plan
     if (filterPlan.value !== 'ALL') {
       if (filterPlan.value === 'NONE') {
         if (m.hasActiveMembership) return false;
@@ -313,7 +330,7 @@ const filteredMembers = computed(() => {
         if (m.activePlanId !== filterPlan.value) return false;
       }
     }
-    // 2. Filtro de estatus
+    // 3. Filtro de estatus
     if (filterStatus.value !== 'ALL') {
       if (filterStatus.value === 'ACTIVE') {
         if (m.isActive === false) return false;
@@ -402,11 +419,14 @@ onMounted(async () => {
   }
 });
 
-async function handleSearch() {
-  isLoading.value = true;
-  await memberStore.fetchMembers(searchQuery.value);
-  isLoading.value = false;
-}
+// Watcher con debounce para sincronizar la búsqueda en el servidor en segundo plano
+let searchTimeout: any = null;
+watch(searchQuery, (newVal) => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(async () => {
+    await memberStore.fetchMembers(newVal);
+  }, 350);
+});
 
 async function selectMember(id: string) {
   isDetailLoading.value = true;
@@ -1310,7 +1330,6 @@ const formattedNotes = computed(() => {
           <div class="relative">
             <input 
               v-model="searchQuery" 
-              @input="handleSearch"
               type="text" 
               placeholder="Buscar por nombre, folio..." 
               class="w-full saas-input saas-input-with-icon text-xs"

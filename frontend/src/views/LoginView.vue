@@ -32,6 +32,10 @@ async function handleLogin() {
     authStore.setAuth(data.access_token, data.user);
     if (data.user.mustChangePassword) {
       router.push('/change-password');
+    } else if (data.user.roleName === 'clock') {
+      router.push('/access-control');
+    } else if (data.user.roleName === 'receptionist') {
+      router.push('/members');
     } else {
       router.push('/');
     }
@@ -69,7 +73,7 @@ async function handleLogin() {
             type="email"
             required
             class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FA2F2A] transition-all"
-            placeholder="goldencorpsgym@gmail.com"
+            placeholder="correo@ejemplo.com"
           />
         </div>
 
@@ -81,7 +85,7 @@ async function handleLogin() {
               :type="showPassword ? 'text' : 'password'"
               required
               class="w-full bg-neutral-900 border border-neutral-800 text-white rounded-lg pl-4 pr-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FA2F2A] transition-all"
-              placeholder="Golden#2026"
+              placeholder="contraseña"
             />
             <button
               type="button"

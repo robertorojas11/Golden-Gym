@@ -132,5 +132,7 @@ export class PaymentsService {
     };
   }
 
-
+  findByUser(userId: string): any[] {
+    return this.findAll().filter((p) => p.processedBy === userId);
+  }
 }

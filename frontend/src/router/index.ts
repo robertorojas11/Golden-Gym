@@ -68,7 +68,22 @@ router.beforeEach((to, from, next) => {
   } else if (authStore.user?.mustChangePassword && to.path !== '/change-password') {
     next('/change-password');
   } else {
-    next();
+    const role = authStore.user?.roleName;
+    if (role === 'clock') {
+      if (to.path !== '/access-control' && to.path !== '/change-password') {
+        next('/access-control');
+      } else {
+        next();
+      }
+    } else if (role === 'receptionist') {
+      if (to.path === '/' || to.path === '/users') {
+        next('/members');
+      } else {
+        next();
+      }
+    } else {
+      next();
+    }
   }
 });
 

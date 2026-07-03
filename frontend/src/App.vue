@@ -61,19 +61,39 @@ onMounted(() => {
 
         <!-- Menú de Navegación -->
         <nav class="hidden md:flex items-center space-x-5 text-xs font-bold uppercase tracking-wider text-neutral-400">
-          <router-link to="/" class="hover:text-white transition-colors" active-class="text-white border-b-2 border-[#FA2F2A] pb-1">
+          <router-link 
+            v-if="authStore.userRole !== 'clock' && authStore.userRole !== 'receptionist'" 
+            to="/" 
+            class="hover:text-white transition-colors" 
+            active-class="text-white border-b-2 border-[#FA2F2A] pb-1"
+          >
             Inicio
           </router-link>
           <router-link to="/access-control" class="hover:text-white transition-colors" active-class="text-white border-b-2 border-[#FA2F2A] pb-1">
             Control de Acceso
           </router-link>
-          <router-link to="/members" class="hover:text-white transition-colors" active-class="text-white border-b-2 border-[#FA2F2A] pb-1">
+          <router-link 
+            v-if="authStore.userRole !== 'clock'" 
+            to="/members" 
+            class="hover:text-white transition-colors" 
+            active-class="text-white border-b-2 border-[#FA2F2A] pb-1"
+          >
             Miembros
           </router-link>
-          <router-link to="/memberships" class="hover:text-white transition-colors" active-class="text-white border-b-2 border-[#FA2F2A] pb-1">
+          <router-link 
+            v-if="authStore.userRole !== 'clock'" 
+            to="/memberships" 
+            class="hover:text-white transition-colors" 
+            active-class="text-white border-b-2 border-[#FA2F2A] pb-1"
+          >
             Planes
           </router-link>
-          <router-link to="/payments" class="hover:text-white transition-colors" active-class="text-white border-b-2 border-[#FA2F2A] pb-1">
+          <router-link 
+            v-if="authStore.userRole !== 'clock'" 
+            to="/payments" 
+            class="hover:text-white transition-colors" 
+            active-class="text-white border-b-2 border-[#FA2F2A] pb-1"
+          >
             Pagos
           </router-link>
           <router-link 
@@ -199,19 +219,39 @@ onMounted(() => {
       class="md:hidden fixed inset-x-0 top-20 bottom-0 bg-black/95 backdrop-blur-md z-30 flex flex-col p-6 space-y-6 animate-in fade-in slide-in-from-top-5 duration-200 border-t border-neutral-900"
     >
       <nav class="flex flex-col space-y-5 text-sm font-bold uppercase tracking-wider text-neutral-400">
-        <router-link to="/" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+        <router-link 
+          v-if="authStore.userRole !== 'clock' && authStore.userRole !== 'receptionist'" 
+          to="/" 
+          class="hover:text-white transition-colors py-1" 
+          active-class="text-white border-l-4 border-[#FA2F2A] pl-3"
+        >
           Inicio
         </router-link>
         <router-link to="/access-control" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
           Control de Acceso
         </router-link>
-        <router-link to="/members" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+        <router-link 
+          v-if="authStore.userRole !== 'clock'" 
+          to="/members" 
+          class="hover:text-white transition-colors py-1" 
+          active-class="text-white border-l-4 border-[#FA2F2A] pl-3"
+        >
           Miembros
         </router-link>
-        <router-link to="/memberships" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+        <router-link 
+          v-if="authStore.userRole !== 'clock'" 
+          to="/memberships" 
+          class="hover:text-white transition-colors py-1" 
+          active-class="text-white border-l-4 border-[#FA2F2A] pl-3"
+        >
           Planes
         </router-link>
-        <router-link to="/payments" class="hover:text-white transition-colors py-1" active-class="text-white border-l-4 border-[#FA2F2A] pl-3">
+        <router-link 
+          v-if="authStore.userRole !== 'clock'" 
+          to="/payments" 
+          class="hover:text-white transition-colors py-1" 
+          active-class="text-white border-l-4 border-[#FA2F2A] pl-3"
+        >
           Pagos
         </router-link>
         <router-link 
