@@ -10,7 +10,7 @@ export class MembersService {
     const today = getMXDate();
     const activeMembershipsMap = new Map<string, any>();
     for (const ms of this.db.memberships) {
-      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate >= today) {
+      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate > today) {
         activeMembershipsMap.set(ms.memberId, ms);
       }
     }
@@ -40,7 +40,7 @@ export class MembersService {
     
     const activeMembershipsMap = new Map<string, any>();
     for (const ms of this.db.memberships) {
-      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate >= today) {
+      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate > today) {
         activeMembershipsMap.set(ms.memberId, ms);
       }
     }

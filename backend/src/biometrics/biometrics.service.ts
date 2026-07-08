@@ -39,7 +39,7 @@ export class BiometricsService {
         await this.db.updateExpiredMemberships();
         const today = getMXDate();
         const activeMembership = this.db.memberships.find(
-          (m) => m.memberId === member!.id && m.status === 'ACTIVE' && m.endDate >= today,
+          (m) => m.memberId === member!.id && m.status === 'ACTIVE' && m.endDate > today,
         );
 
         if (body.forceResult === 'denied_expired') {
@@ -48,7 +48,7 @@ export class BiometricsService {
         } else if (!activeMembership) {
           accessGranted = false;
           failureReason = 'MEMBRESIA_EXPIRADA';
-        } else if (activeMembership.endDate < today) {
+        } else if (activeMembership.endDate <= today) {
           accessGranted = false;
           failureReason = 'MEMBRESIA_EXPIRADA';
         } else {

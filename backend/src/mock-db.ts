@@ -258,7 +258,7 @@ export class MockDatabase implements OnModuleInit {
     if (this.memberships) {
       const newRenewals: any[] = [];
       for (const m of this.memberships) {
-        if (m.status === 'ACTIVE' && m.endDate < today) {
+        if (m.status === 'ACTIVE' && m.endDate <= today) {
           m.status = 'EXPIRED';
           await this.saveMembership(m);
 
@@ -297,7 +297,7 @@ export class MockDatabase implements OnModuleInit {
       await this.pool.query(`
         UPDATE memberships 
         SET status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP 
-        WHERE status = 'ACTIVE' AND end_date < $1
+        WHERE status = 'ACTIVE' AND end_date <= $1
       `, [today]);
     } catch (e) {
       console.warn('Could not auto-expire memberships in database:', e);

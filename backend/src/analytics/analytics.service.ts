@@ -30,7 +30,7 @@ export class AnalyticsService {
     const activeMembershipsList = lastMemberships.filter((m) => m.status === 'ACTIVE');
     
     const expiringMemberships = activeMembershipsList.filter(
-      (m) => m.endDate >= todayStr && m.endDate <= sevenDaysFromNowStr,
+      (m) => m.endDate > todayStr && m.endDate <= sevenDaysFromNowStr,
     ).length;
 
     const expiredMemberships = lastMemberships.filter((m) => m.status === 'EXPIRED').length;
@@ -131,7 +131,7 @@ export class AnalyticsService {
 
     const today = getMXDate();
     const upcomingExpirations = this.db.memberships
-      .filter((m) => m.status === 'ACTIVE' && m.endDate >= today)
+      .filter((m) => m.status === 'ACTIVE' && m.endDate > today)
       .sort((a, b) => a.endDate.localeCompare(b.endDate))
       .slice(0, 5)
       .map((m) => {

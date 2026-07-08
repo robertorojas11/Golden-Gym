@@ -38,7 +38,7 @@ export class MembershipsService {
         m.memberId === memberId &&
         m.status === 'ACTIVE' &&
         m.startDate <= today &&
-        m.endDate >= today,
+        m.endDate > today,
     );
   }
 
@@ -52,7 +52,7 @@ export class MembershipsService {
     // Check if there is already an active membership.
     const todayStr = getMXDate();
     const activePlan = this.db.memberships.find(
-      (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate >= todayStr
+      (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate > todayStr
     );
 
     if (activePlan) {
@@ -63,7 +63,7 @@ export class MembershipsService {
     if (additionalMemberIds && additionalMemberIds.length > 0) {
       for (const addId of additionalMemberIds) {
         const activeAdd = this.db.memberships.find(
-          (m) => m.memberId === addId && m.status === 'ACTIVE' && m.endDate >= todayStr
+          (m) => m.memberId === addId && m.status === 'ACTIVE' && m.endDate > todayStr
         );
         if (activeAdd) {
           const addMember = this.db.members.find(m => m.id === addId);
