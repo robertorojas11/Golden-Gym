@@ -44,6 +44,18 @@ export function getMXTimestamp(dateInput: Date | string = new Date()): string {
   return localStr.replace(' ', 'T');
 }
 
+export function capitalizeWords(val: string | null | undefined): string {
+  if (!val) return '';
+  return val
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
 export interface User {
   id: string;
   email: string;
@@ -267,10 +279,15 @@ export class MockDatabase implements OnModuleInit {
           if (member && member.noPaymentRequired) {
             const plan = this.plans.find((p) => p.id === m.planId);
             if (plan) {
+              const prevStart = new Date(m.startDate + 'T00:00:00');
+              const prevEnd = new Date(m.endDate + 'T00:00:00');
+              const calculatedDays = Math.round((prevEnd.getTime() - prevStart.getTime()) / (1000 * 60 * 60 * 24));
+              const durationDays = calculatedDays > 0 ? calculatedDays : plan.durationDays;
+
               const startDateStr = m.endDate;
               const startVal = new Date(startDateStr + 'T00:00:00');
               const endVal = new Date(startVal.getTime());
-              endVal.setDate(endVal.getDate() + plan.durationDays);
+              endVal.setDate(endVal.getDate() + durationDays);
               const endDateStr = getMXDate(endVal);
 
               const newMs = {
@@ -305,7 +322,6 @@ export class MockDatabase implements OnModuleInit {
   }
 
   async loadAllFromDatabase() {
-    await this.updateExpiredMemberships();
     // 1. Load users
     const usersRes = await this.pool.query('SELECT * FROM users');
     const rolesRes = await this.pool.query('SELECT * FROM roles');
@@ -383,6 +399,19 @@ export class MockDatabase implements OnModuleInit {
       };
     });
 
+    // Capitalize names/surnames and emergency contacts for existing members at system starts
+    for (const m of this.members) {
+      const cappedFirst = capitalizeWords(m.firstName);
+      const cappedLast = capitalizeWords(m.lastName);
+      const cappedEmergency = capitalizeWords(m.emergencyContactName);
+      if (m.firstName !== cappedFirst || m.lastName !== cappedLast || m.emergencyContactName !== cappedEmergency) {
+        m.firstName = cappedFirst;
+        m.lastName = cappedLast;
+        m.emergencyContactName = cappedEmergency;
+        await this.saveMember(m);
+      }
+    }
+
     // 4. Load memberships
     const membershipsRes = await this.pool.query('SELECT * FROM memberships WHERE deleted_at IS NULL');
     this.memberships = membershipsRes.rows.map(row => {
@@ -398,6 +427,8 @@ export class MockDatabase implements OnModuleInit {
         parentMembershipId: row.parent_membership_id || undefined,
       };
     });
+
+    await this.updateExpiredMemberships();
 
     // 5. Load payments
     const paymentsRes = await this.pool.query('SELECT * FROM payments WHERE deleted_at IS NULL');

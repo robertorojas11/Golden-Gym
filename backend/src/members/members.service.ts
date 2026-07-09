@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Member, getMXDate } from '../mock-db';
+import { MockDatabase, Member, getMXDate, capitalizeWords } from '../mock-db';
 
 @Injectable()
 export class MembersService {
@@ -93,8 +93,8 @@ export class MembersService {
     const newMember: Member = {
       id: randomUUID(),
       memberNumber: `MEM-${nextNum}`,
-      firstName: memberData.firstName || '',
-      lastName: memberData.lastName || '',
+      firstName: capitalizeWords(memberData.firstName),
+      lastName: capitalizeWords(memberData.lastName),
       gender: memberData.gender || 'Male',
       birthDate: memberData.birthDate || '',
       email: memberData.email || '',
@@ -104,7 +104,7 @@ export class MembersService {
       city: memberData.city || '',
       state: memberData.state || '',
       postalCode: memberData.postalCode || '',
-      emergencyContactName: memberData.emergencyContactName || '',
+      emergencyContactName: capitalizeWords(memberData.emergencyContactName),
       emergencyContactPhone: memberData.emergencyContactPhone || '',
       emergencyContactRelationship: memberData.emergencyContactRelationship || '',
       registrationDate: getMXDate(),
@@ -123,6 +123,11 @@ export class MembersService {
   async update(id: string, updateData: Partial<Member>, userId?: string): Promise<Member> {
     const member = this.findOne(id);
     const user = userId ? this.db.users.find((u) => u.id === userId) : undefined;
+    
+    if (updateData.firstName !== undefined) updateData.firstName = capitalizeWords(updateData.firstName);
+    if (updateData.lastName !== undefined) updateData.lastName = capitalizeWords(updateData.lastName);
+    if (updateData.emergencyContactName !== undefined) updateData.emergencyContactName = capitalizeWords(updateData.emergencyContactName);
+
     Object.assign(member, {
       ...updateData,
       updatedBy: userId,
