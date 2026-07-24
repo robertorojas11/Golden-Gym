@@ -61,24 +61,46 @@ export class PaymentsService {
       throw new NotFoundException('Membership not found');
     }
 
-    if (ms.status !== 'PENDING') {
+    // Resolve group parent if it's a child membership (bill split)
+    let billingMs = ms;
+    if (ms.parentMembershipId) {
+      const parent = this.db.memberships.find((m) => m.id === ms.parentMembershipId);
+      if (parent) {
+        billingMs = parent;
+      }
+    }
+
+    if (billingMs.status !== 'PENDING') {
       throw new BadRequestException('La membresía ya se encuentra pagada, cancelada o vencida. Solo se pueden cobrar membresías pendientes.');
     }
 
     // Validate discount
-    const plan = this.db.plans.find((p) => p.id === ms.planId);
+    const plan = this.db.plans.find((p) => p.id === billingMs.planId);
     if (!plan) {
       throw new NotFoundException('Membership plan not found');
     }
+
     const discount = paymentData.discount || 0;
     if (discount < 0) {
       throw new BadRequestException('El descuento no puede ser negativo.');
     }
-    if (discount > plan.price) {
-      throw new BadRequestException('El descuento no puede ser mayor al precio de la membresía.');
+
+    // Calculate existing payments and discounts for this billing entity
+    const existingPayments = this.db.payments.filter((p) => p.membershipId === billingMs.id);
+    const totalPaidSoFar = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalDiscountSoFar = existingPayments.reduce((sum, p) => sum + p.discount, 0);
+
+    if (totalDiscountSoFar + discount > plan.price) {
+      throw new BadRequestException('El descuento total no puede ser mayor al precio de la membresía.');
     }
-    if (paymentData.amount !== (plan.price - discount)) {
-      throw new BadRequestException('El monto pagado debe corresponder al precio del plan menos el descuento.');
+
+    const remainingBalance = plan.price - (totalDiscountSoFar + discount) - totalPaidSoFar;
+
+    if (paymentData.amount <= 0) {
+      throw new BadRequestException('El monto pagado debe ser mayor a 0.');
+    }
+    if (paymentData.amount > remainingBalance) {
+      throw new BadRequestException(`El monto pagado excede el saldo pendiente de $${remainingBalance / 100} MXN.`);
     }
 
     // Resolve payment method name
@@ -86,11 +108,12 @@ export class PaymentsService {
     if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000002') methodName = 'Debit Card';
     if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000003') methodName = 'Credit Card';
     if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000004') methodName = 'Transfer';
+    if (paymentData.paymentMethodId === '90000000-0000-0000-0000-000000000005') methodName = 'Pago Mixto';
 
     const newPayment: Payment = {
       id: randomUUID(),
       memberId: paymentData.memberId,
-      membershipId: paymentData.membershipId,
+      membershipId: billingMs.id, // Store parent membership ID for consistent billing aggregation
       paymentMethodId: paymentData.paymentMethodId,
       paymentMethodName: methodName,
       amount: paymentData.amount,
@@ -107,15 +130,17 @@ export class PaymentsService {
     this.db.payments.push(newPayment);
     await this.db.savePayment(newPayment);
 
-    // Update membership status to ACTIVE
-    ms.status = 'ACTIVE';
-    await this.db.saveMembership(ms);
+    // Update memberships status to ACTIVE only if fully paid
+    const children = this.db.memberships.filter((m) => m.parentMembershipId === billingMs.id);
+    const isFullyPaid = (paymentData.amount === remainingBalance);
+    if (isFullyPaid) {
+      billingMs.status = 'ACTIVE';
+      await this.db.saveMembership(billingMs);
 
-    // Activate all child memberships under this parent membership
-    const children = this.db.memberships.filter((m) => m.parentMembershipId === ms.id);
-    for (const child of children) {
-      child.status = 'ACTIVE';
-      await this.db.saveMembership(child);
+      for (const child of children) {
+        child.status = 'ACTIVE';
+        await this.db.saveMembership(child);
+      }
     }
 
     const member = this.db.members.find((m) => m.id === newPayment.memberId);
@@ -129,6 +154,7 @@ export class PaymentsService {
       memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
       memberNumber: member ? member.memberNumber : 'N/A',
       beneficiaries,
+      isFullyPaid,
     };
   }
 

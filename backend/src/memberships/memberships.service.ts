@@ -22,10 +22,23 @@ export class MembershipsService {
         }
       }
       const children = this.db.memberships.filter((child) => child.parentMembershipId === parentMs.id);
+      
+      let remainingBalance = 0;
+      if (m.status === 'PENDING') {
+        const plan = this.db.plans.find((p) => p.id === parentMs.planId);
+        if (plan) {
+          const payments = this.db.payments.filter((p) => p.membershipId === parentMs.id);
+          const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+          const totalDiscount = payments.reduce((sum, p) => sum + p.discount, 0);
+          remainingBalance = plan.price - totalDiscount - totalPaid;
+        }
+      }
+
       return {
         ...m,
         groupParentMemberId: parentMs.memberId,
         beneficiaryIds: children.map((child) => child.memberId),
+        remainingBalance,
       };
     });
   }

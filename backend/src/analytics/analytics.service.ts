@@ -116,18 +116,21 @@ export class AnalyticsService {
 
   getRecentData() {
     const recentAccesses = this.db.accessLogs.slice(0, 5);
-    const recentPayments = this.db.payments.slice(0, 5).map((p) => {
-      const member = this.db.members.find((m) => m.id === p.memberId);
-      return {
-        id: p.id,
-        memberId: p.memberId,
-        memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
-        amount: p.amount / 100, // en MXN
-        paymentDate: p.paymentDate,
-        method: p.paymentMethodName,
-        status: p.status,
-      };
-    });
+    const recentPayments = [...this.db.payments]
+      .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
+      .slice(0, 5)
+      .map((p) => {
+        const member = this.db.members.find((m) => m.id === p.memberId);
+        return {
+          id: p.id,
+          memberId: p.memberId,
+          memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
+          amount: p.amount / 100, // en MXN
+          paymentDate: p.paymentDate,
+          method: p.paymentMethodName,
+          status: p.status,
+        };
+      });
 
     const today = getMXDate();
     const upcomingExpirations = this.db.memberships

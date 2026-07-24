@@ -227,6 +227,13 @@ export class MockDatabase implements OnModuleInit {
           ON CONFLICT (id) DO NOTHING
         `);
 
+        // Ensure Pago Mixto exists in payment_methods
+        await this.pool.query(`
+          INSERT INTO payment_methods (id, name, is_active)
+          VALUES ('90000000-0000-0000-0000-000000000005', 'Pago Mixto', TRUE)
+          ON CONFLICT (id) DO NOTHING
+        `);
+
         // Link manage:access permission to clock role
         await this.pool.query(`
           INSERT INTO role_permissions (role_id, permission_id)

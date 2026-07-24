@@ -325,6 +325,28 @@ const paymentForm = ref({
   referenceNumber: '',
 });
 
+const mixedPaymentEfectivo = ref(0);
+const mixedPaymentTarjeta = ref(0);
+const mixedPaymentTransferencia = ref(0);
+
+function updateMixedTotal() {
+  paymentForm.value.amount = (mixedPaymentEfectivo.value || 0) + (mixedPaymentTarjeta.value || 0) + (mixedPaymentTransferencia.value || 0);
+}
+
+function closeRegisterPayment() {
+  showRegisterPayment.value = false;
+  paymentForm.value = {
+    memberId: '',
+    membershipId: '',
+    paymentMethodId: '90000000-0000-0000-0000-000000000001',
+    amount: 0,
+    referenceNumber: '',
+  };
+  mixedPaymentEfectivo.value = 0;
+  mixedPaymentTarjeta.value = 0;
+  mixedPaymentTransferencia.value = 0;
+}
+
 const memberMemberships = ref<any[]>([]);
 
 async function onPaymentMemberChange() {
@@ -337,10 +359,15 @@ async function onPaymentMemberChange() {
     const raw = await res.json();
     memberMemberships.value = raw.filter((m: any) => m.status === 'PENDING');
     if (memberMemberships.value.length > 0) {
-      paymentForm.value.membershipId = memberMemberships.value[0].id;
-      const plan = memberStore.plans.find((p) => p.id === memberMemberships.value[0].planId);
-      if (plan) {
-        paymentForm.value.amount = plan.price / 100;
+      const selected = memberMemberships.value[0];
+      paymentForm.value.membershipId = selected.id;
+      if (selected.remainingBalance !== undefined) {
+        paymentForm.value.amount = selected.remainingBalance / 100;
+      } else {
+        const plan = memberStore.plans.find((p) => p.id === selected.planId);
+        if (plan) {
+          paymentForm.value.amount = plan.price / 100;
+        }
       }
     } else {
       paymentForm.value.membershipId = '';
@@ -350,22 +377,35 @@ async function onPaymentMemberChange() {
 }
 
 async function submitRegisterPayment() {
+  let finalRef = paymentForm.value.referenceNumber;
+  if (paymentForm.value.paymentMethodId === '90000000-0000-0000-0000-000000000005') {
+    const parts = [];
+    if (mixedPaymentEfectivo.value > 0) parts.push(`Ef: $${mixedPaymentEfectivo.value}`);
+    if (mixedPaymentTarjeta.value > 0) parts.push(`Tarj: $${mixedPaymentTarjeta.value}`);
+    if (mixedPaymentTransferencia.value > 0) parts.push(`Transf: $${mixedPaymentTransferencia.value}`);
+    const details = parts.join(' + ');
+    finalRef = finalRef ? `${details} | Ref: ${finalRef}` : details;
+  }
+
   const payload = {
     ...paymentForm.value,
+    referenceNumber: finalRef,
     amount: paymentForm.value.amount * 100, // a centavos
   };
   const createdPayment = await memberStore.registerPayment(payload);
   if (createdPayment) {
-    // Generate and download PDF receipt
-    try {
-      const member = memberStore.members.find((m) => m.id === payload.memberId);
-      const membership = memberMemberships.value.find((ms) => ms.id === payload.membershipId);
-      const plan = membership ? memberStore.plans.find((p) => p.id === membership.planId) : null;
-      const planName = plan ? plan.name : 'Plan de Membresía';
-      
-      await downloadPaymentReceipt(createdPayment, member, planName, createdPayment.beneficiaries);
-    } catch (e) {
-      console.error('Error generating PDF receipt', e);
+    // Generate and download PDF receipt only if fully paid
+    if (createdPayment.isFullyPaid) {
+      try {
+        const member = memberStore.members.find((m) => m.id === payload.memberId);
+        const membership = memberMemberships.value.find((ms) => ms.id === payload.membershipId);
+        const plan = membership ? memberStore.plans.find((p) => p.id === membership.planId) : null;
+        const planName = plan ? plan.name : 'Plan de Membresía';
+        
+        await downloadPaymentReceipt(createdPayment, member, planName, createdPayment.beneficiaries);
+      } catch (e) {
+        console.error('Error generating PDF receipt', e);
+      }
     }
 
     showRegisterPayment.value = false;
@@ -376,6 +416,9 @@ async function submitRegisterPayment() {
       amount: 0,
       referenceNumber: '',
     };
+    mixedPaymentEfectivo.value = 0;
+    mixedPaymentTarjeta.value = 0;
+    mixedPaymentTransferencia.value = 0;
     fetchDashboardData();
   }
 }
@@ -971,13 +1014,33 @@ function formatNumber(val: number) {
               <option value="90000000-0000-0000-0000-000000000002">Tarjeta de Débito</option>
               <option value="90000000-0000-0000-0000-000000000003">Tarjeta de Crédito</option>
               <option value="90000000-0000-0000-0000-000000000004">Transferencia</option>
+              <option value="90000000-0000-0000-0000-000000000005">Pago Mixto</option>
             </select>
+          </div>
+
+          <!-- Pago Mixto breakdown -->
+          <div v-if="paymentForm.paymentMethodId === '90000000-0000-0000-0000-000000000005'" class="p-3 bg-neutral-50 border rounded-lg space-y-3">
+            <p class="text-xs font-bold text-neutral-600 mb-1">Desglose de Pago Mixto (MXN)</p>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Efectivo</label>
+                <input v-model.number="mixedPaymentEfectivo" type="number" @input="updateMixedTotal" min="0" class="w-full border rounded-lg px-2 py-1 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Tarjeta</label>
+                <input v-model.number="mixedPaymentTarjeta" type="number" @input="updateMixedTotal" min="0" class="w-full border rounded-lg px-2 py-1 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Transf.</label>
+                <input v-model.number="mixedPaymentTransferencia" type="number" @input="updateMixedTotal" min="0" class="w-full border rounded-lg px-2 py-1 text-xs" />
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-neutral-500 uppercase mb-2">Monto (MXN)</label>
-              <input v-model="paymentForm.amount" type="number" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input v-model="paymentForm.amount" type="number" required :disabled="paymentForm.paymentMethodId === '90000000-0000-0000-0000-000000000005'" class="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-neutral-50 disabled:text-neutral-500" />
             </div>
             <div>
               <label class="block text-xs font-semibold text-neutral-500 uppercase mb-2">Nº Referencia (Opcional)</label>
@@ -986,7 +1049,7 @@ function formatNumber(val: number) {
           </div>
 
           <div class="flex justify-end space-x-3 pt-4 border-t border-neutral-100">
-            <button @click="showRegisterPayment = false" type="button" class="px-4 py-2 border rounded-lg text-xs font-semibold text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+            <button @click="closeRegisterPayment" type="button" class="px-4 py-2 border rounded-lg text-xs font-semibold text-neutral-600 hover:bg-neutral-50">Cancelar</button>
             <button type="submit" class="px-4 py-2 bg-black text-white rounded-lg text-xs font-semibold hover:bg-neutral-900">Confirmar Pago</button>
           </div>
         </form>

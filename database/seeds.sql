@@ -53,7 +53,8 @@ INSERT INTO payment_methods (id, name, is_active) VALUES
 ('90000000-0000-0000-0000-000000000001', 'Efectivo', TRUE),
 ('90000000-0000-0000-0000-000000000002', 'Tarjeta de Débito', TRUE),
 ('90000000-0000-0000-0000-000000000003', 'Tarjeta de Crédito', TRUE),
-('90000000-0000-0000-0000-000000000004', 'Transferencia', TRUE);
+('90000000-0000-0000-0000-000000000004', 'Transferencia', TRUE),
+('90000000-0000-0000-0000-000000000005', 'Pago Mixto', TRUE);
 
 -- 13. Configuraciones del Sistema
 INSERT INTO system_settings (key, value, description) VALUES

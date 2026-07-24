@@ -582,6 +582,10 @@ function getMemberAvatarUrl(member: any): string {
 async function downloadReceipt(payment: any) {
   if (!memberStore.selectedMember) return;
   const membership = memberStore.activeMemberships.find((m: any) => m.id === payment.membershipId);
+  if (membership && membership.status === 'PENDING') {
+    triggerToast('No se puede generar el recibo hasta que el saldo esté completamente liquidado.');
+    return;
+  }
   const plan = membership ? memberStore.plans.find((p: any) => p.id === membership.planId) : null;
   const planName = plan ? plan.name : 'Plan de Membresía';
   
@@ -952,6 +956,14 @@ const paymentForm = ref({
   referenceNumber: '',
 });
 
+const mixedPaymentEfectivo = ref(0);
+const mixedPaymentTarjeta = ref(0);
+const mixedPaymentTransferencia = ref(0);
+
+function updateMixedTotal() {
+  paymentForm.value.amount = (mixedPaymentEfectivo.value || 0) + (mixedPaymentTarjeta.value || 0) + (mixedPaymentTransferencia.value || 0);
+}
+
 const memberPendingMemberships = computed(() => {
   return memberStore.activeMemberships.filter((m: any) => m.status === 'PENDING');
 });
@@ -964,11 +976,19 @@ function openRegisterPaymentModal() {
     discount: 0,
     referenceNumber: '',
   };
+  mixedPaymentEfectivo.value = 0;
+  mixedPaymentTarjeta.value = 0;
+  mixedPaymentTransferencia.value = 0;
   if (memberPendingMemberships.value.length > 0) {
-    paymentForm.value.membershipId = memberPendingMemberships.value[0].id;
-    const plan = memberStore.plans.find((p: any) => p.id === memberPendingMemberships.value[0].planId);
-    if (plan) {
-      paymentForm.value.amount = plan.price / 100;
+    const selected = memberPendingMemberships.value[0];
+    paymentForm.value.membershipId = selected.id;
+    if (selected.remainingBalance !== undefined) {
+      paymentForm.value.amount = selected.remainingBalance / 100;
+    } else {
+      const plan = memberStore.plans.find((p: any) => p.id === selected.planId);
+      if (plan) {
+        paymentForm.value.amount = plan.price / 100;
+      }
     }
   }
   showRegisterPaymentModal.value = true;
@@ -977,24 +997,29 @@ function openRegisterPaymentModal() {
 function onPaymentPlanChange() {
   paymentForm.value.discount = 0;
   const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
-  const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
-  if (plan) {
-    paymentForm.value.amount = plan.price / 100;
+  if (selectedMs) {
+    if (selectedMs.remainingBalance !== undefined) {
+      paymentForm.value.amount = selectedMs.remainingBalance / 100;
+    } else {
+      const plan = memberStore.plans.find((p: any) => p.id === selectedMs.planId);
+      if (plan) {
+        paymentForm.value.amount = plan.price / 100;
+      }
+    }
   }
 }
 
 function onDiscountChange() {
   const selectedMs = memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
-  const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
-  if (plan) {
-    const originalPrice = plan.price / 100;
-    if (paymentForm.value.discount > originalPrice) {
-      paymentForm.value.discount = originalPrice;
+  if (selectedMs) {
+    const basePrice = selectedMs.remainingBalance !== undefined ? selectedMs.remainingBalance / 100 : getPlanPriceForSelected();
+    if (paymentForm.value.discount > basePrice) {
+      paymentForm.value.discount = basePrice;
     }
     if (paymentForm.value.discount < 0) {
       paymentForm.value.discount = 0;
     }
-    paymentForm.value.amount = originalPrice - paymentForm.value.discount;
+    paymentForm.value.amount = basePrice - paymentForm.value.discount;
   }
 }
 
@@ -1013,13 +1038,23 @@ async function handleRegisterPayment() {
   
   isSubmitting.value = true;
   try {
+    let finalRef = paymentForm.value.referenceNumber;
+    if (paymentForm.value.paymentMethodId === '90000000-0000-0000-0000-000000000005') {
+      const parts = [];
+      if (mixedPaymentEfectivo.value > 0) parts.push(`Ef: $${mixedPaymentEfectivo.value}`);
+      if (mixedPaymentTarjeta.value > 0) parts.push(`Tarj: $${mixedPaymentTarjeta.value}`);
+      if (mixedPaymentTransferencia.value > 0) parts.push(`Transf: $${mixedPaymentTransferencia.value}`);
+      const details = parts.join(' + ');
+      finalRef = finalRef ? `${details} | Ref: ${finalRef}` : details;
+    }
+
     const payload = {
       memberId: memberStore.selectedMember.id,
       membershipId: paymentForm.value.membershipId,
       paymentMethodId: paymentForm.value.paymentMethodId,
       amount: paymentForm.value.amount * 100, // a centavos
       discount: (paymentForm.value.discount || 0) * 100, // a centavos
-      referenceNumber: paymentForm.value.referenceNumber,
+      referenceNumber: finalRef,
     };
 
     const created = await memberStore.registerPayment(payload);
@@ -1028,14 +1063,16 @@ async function handleRegisterPayment() {
       triggerToast('Pago registrado correctamente.');
       await memberStore.fetchMemberDetail(memberStore.selectedMember.id);
       
-      // Auto download receipt
-      try {
-        const selectedMs = memberStore.activeMemberships.find((m: any) => m.id === payload.membershipId);
-        const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
-        const planName = plan ? plan.name : 'Plan de Membresía';
-        await downloadPaymentReceipt(created, memberStore.selectedMember, planName, created.beneficiaries);
-      } catch (e) {
-        console.error('Error generating PDF receipt', e);
+      // Auto download receipt only if fully paid
+      if (created.isFullyPaid) {
+        try {
+          const selectedMs = memberStore.activeMemberships.find((m: any) => m.id === payload.membershipId);
+          const plan = selectedMs ? memberStore.plans.find((p: any) => p.id === selectedMs.planId) : null;
+          const planName = plan ? plan.name : 'Plan de Membresía';
+          await downloadPaymentReceipt(created, memberStore.selectedMember, planName, created.beneficiaries);
+        } catch (e) {
+          console.error('Error generating PDF receipt', e);
+        }
       }
     } else {
       triggerToast('Error al registrar el pago.');
@@ -2500,7 +2537,27 @@ const formattedNotes = computed(() => {
               <option value="90000000-0000-0000-0000-000000000002">Tarjeta de Débito</option>
               <option value="90000000-0000-0000-0000-000000000003">Tarjeta de Crédito</option>
               <option value="90000000-0000-0000-0000-000000000004">Transferencia Bancaria</option>
+              <option value="90000000-0000-0000-0000-000000000005">Pago Mixto / Combinado</option>
             </select>
+          </div>
+
+          <!-- Pago Mixto breakdown -->
+          <div v-if="paymentForm.paymentMethodId === '90000000-0000-0000-0000-000000000005'" class="p-3 bg-neutral-900 border border-neutral-800 rounded-xl space-y-3">
+            <p class="text-xs font-bold text-neutral-400 mb-1">Desglose de Pago Mixto (MXN)</p>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Efectivo</label>
+                <input v-model.number="mixedPaymentEfectivo" type="number" @input="updateMixedTotal" min="0" class="w-full saas-input py-1 px-2 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Tarjeta</label>
+                <input v-model.number="mixedPaymentTarjeta" type="number" @input="updateMixedTotal" min="0" class="w-full saas-input py-1 px-2 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Transf.</label>
+                <input v-model.number="mixedPaymentTransferencia" type="number" @input="updateMixedTotal" min="0" class="w-full saas-input py-1 px-2 text-xs" />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -2530,7 +2587,7 @@ const formattedNotes = computed(() => {
               required 
               min="0" 
               step="0.01" 
-              :disabled="authStore.userRole === 'owner' || authStore.userRole === 'administrator'" 
+              :disabled="authStore.userRole === 'owner' || authStore.userRole === 'administrator' || paymentForm.paymentMethodId === '90000000-0000-0000-0000-000000000005'" 
               class="w-full saas-input font-bold font-mono text-emerald-500 text-sm disabled:opacity-80" 
             />
           </div>
