@@ -1,29 +1,37 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { MockDatabase, Member, getMXDate, capitalizeWords } from '../mock-db';
+import { resolveMembershipForAccess } from '../memberships/membership-resolver';
 
 @Injectable()
 export class MembersService {
   constructor(private db: MockDatabase) {}
 
-  findAll() {
+  private toSummary(member: Member) {
     const today = getMXDate();
-    const activeMembershipsMap = new Map<string, any>();
-    for (const ms of this.db.memberships) {
-      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate > today) {
-        activeMembershipsMap.set(ms.memberId, ms);
-      }
-    }
+    const resolved = resolveMembershipForAccess(this.db.memberships, member.id, today);
+    const active = resolved?.status === 'ACTIVE' && resolved.startDate <= today && resolved.endDate > today
+      ? resolved : undefined;
+    return {
+      id: member.id,
+      memberNumber: member.memberNumber,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      gender: member.gender,
+      email: member.email,
+      phone: member.phone,
+      registrationDate: member.registrationDate,
+      isActive: member.isActive,
+      noPaymentRequired: member.noPaymentRequired,
+      hasPhoto: !!member.photoUrl,
+      activePlanId: active?.planId || null,
+      activePlanName: active?.planName || null,
+      hasActiveMembership: !!active,
+    };
+  }
 
-    return this.db.members.map((m) => {
-      const activeMembership = activeMembershipsMap.get(m.id);
-      return {
-        ...m,
-        activePlanId: activeMembership?.planId || null,
-        activePlanName: activeMembership?.planName || null,
-        hasActiveMembership: !!activeMembership,
-      };
-    });
+  findAll() {
+    return this.db.members.map((member) => this.toSummary(member));
   }
 
   findOne(id: string): Member {
@@ -36,33 +44,15 @@ export class MembersService {
 
   search(query: string) {
     const q = query.toLowerCase();
-    const today = getMXDate();
-    
-    const activeMembershipsMap = new Map<string, any>();
-    for (const ms of this.db.memberships) {
-      if (ms.status === 'ACTIVE' && ms.startDate <= today && ms.endDate > today) {
-        activeMembershipsMap.set(ms.memberId, ms);
-      }
-    }
-
     return this.db.members
-      .filter(
-        (m) =>
-          (m.firstName.toLowerCase().includes(q) ||
-            m.lastName.toLowerCase().includes(q) ||
-            m.memberNumber.toLowerCase().includes(q) ||
-            m.phone.includes(q) ||
-            m.email?.toLowerCase().includes(q)),
+      .filter((member) =>
+        member.firstName.toLowerCase().includes(q) ||
+        member.lastName.toLowerCase().includes(q) ||
+        member.memberNumber.toLowerCase().includes(q) ||
+        member.phone.includes(q) ||
+        member.email?.toLowerCase().includes(q),
       )
-      .map((m) => {
-        const activeMembership = activeMembershipsMap.get(m.id);
-        return {
-          ...m,
-          activePlanId: activeMembership?.planId || null,
-          activePlanName: activeMembership?.planName || null,
-          hasActiveMembership: !!activeMembership,
-        };
-      });
+      .map((member) => this.toSummary(member));
   }
 
   async create(memberData: Partial<Member>, userId?: string): Promise<Member> {
@@ -116,7 +106,7 @@ export class MembersService {
       createdByName: user ? `${user.firstName} ${user.lastName}` : 'Lucas Vance',
     };
     this.db.members.push(newMember);
-    await this.db.saveMember(newMember);
+    await this.db.saveMember(newMember, { photoChanged: true, notesChanged: true });
     return newMember;
   }
 
@@ -128,12 +118,14 @@ export class MembersService {
     if (updateData.lastName !== undefined) updateData.lastName = capitalizeWords(updateData.lastName);
     if (updateData.emergencyContactName !== undefined) updateData.emergencyContactName = capitalizeWords(updateData.emergencyContactName);
 
+    const photoChanged = Object.prototype.hasOwnProperty.call(updateData, 'photoUrl');
+    delete updateData.notes;
     Object.assign(member, {
       ...updateData,
       updatedBy: userId,
       updatedByName: user ? `${user.firstName} ${user.lastName}` : undefined,
     });
-    await this.db.saveMember(member);
+    await this.db.saveMember(member, { photoChanged });
     return member;
   }
 
@@ -150,12 +142,20 @@ export class MembersService {
       member.notes = [];
     }
     member.notes.push(note);
-    await this.db.saveMember(member);
+    await this.db.saveMemberNote(member.id, note);
     return member;
   }
 
   findDocuments(memberId: string) {
-    return this.db.documents.filter((d) => d.memberId === memberId);
+    return this.db.documents
+      .filter((d) => d.memberId === memberId)
+      .map(({ fileData, ...metadata }) => metadata);
+  }
+
+  findDocument(memberId: string, docId: string) {
+    const document = this.db.documents.find((d) => d.id === docId && d.memberId === memberId);
+    if (!document) throw new NotFoundException('Document not found');
+    return document;
   }
 
   async addDocument(memberId: string, data: { summary: string; fileData: string; mimeType?: string }) {
@@ -170,7 +170,8 @@ export class MembersService {
     };
     this.db.documents.push(newDoc);
     await this.db.saveDocument(newDoc);
-    return newDoc;
+    const { fileData, ...metadata } = newDoc;
+    return metadata;
   }
 
   async deleteDocument(memberId: string, docId: string) {

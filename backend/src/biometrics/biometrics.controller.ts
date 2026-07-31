@@ -9,7 +9,7 @@ export class BiometricsController {
   constructor(private service: BiometricsService) {}
 
   @Post('scan')
-  scan(@Body() body: { memberId?: string; forceResult?: string }) {
+  scan(@Body() body: { memberId?: string; forceResult?: string; scanId?: string }) {
     return this.service.scanFingerprint(body);
   }
 

@@ -1,12 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { MockDatabase, AccessLog, Member, getMXDate, getMXTimestamp } from '../mock-db';
+import { resolveMembershipForAccess } from '../memberships/membership-resolver';
 
 @Injectable()
 export class BiometricsService {
+  private scanRequests = new Map<string, Promise<any>>();
+
   constructor(private db: MockDatabase) {}
 
-  async scanFingerprint(body: { memberId?: string; forceResult?: string }): Promise<any> {
+  scanFingerprint(body: { memberId?: string; forceResult?: string; scanId?: string }): Promise<any> {
+    if (!body.scanId) return this.executeScan(body);
+    const existing = this.scanRequests.get(body.scanId);
+    if (existing) return existing;
+    const request = this.executeScan(body);
+    this.scanRequests.set(body.scanId, request);
+    setTimeout(() => this.scanRequests.delete(body.scanId!), 10000);
+    return request;
+  }
+
+  private async executeScan(body: { memberId?: string; forceResult?: string }): Promise<any> {
     // Simular el retraso del sensor biométrico (1 segundo)
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -15,6 +28,7 @@ export class BiometricsService {
     let accessGranted = false;
     let failureReason: string | undefined = undefined;
     let member: Member | undefined = undefined;
+    let resolvedMembership;
 
     if (body.forceResult === 'denied_unknown') {
       matched = false;
@@ -38,17 +52,14 @@ export class BiometricsService {
         // Validar estatus de membresía activa
         await this.db.updateExpiredMemberships();
         const today = getMXDate();
-        const activeMembership = this.db.memberships.find(
-          (m) => m.memberId === member!.id && m.status === 'ACTIVE' && m.endDate > today,
-        );
+        resolvedMembership = resolveMembershipForAccess(this.db.memberships, member.id, today);
+        const hasActiveMembership = resolvedMembership?.status === 'ACTIVE' &&
+          resolvedMembership.startDate <= today && resolvedMembership.endDate > today;
 
         if (body.forceResult === 'denied_expired') {
           accessGranted = false;
           failureReason = 'MEMBRESIA_EXPIRADA';
-        } else if (!activeMembership) {
-          accessGranted = false;
-          failureReason = 'MEMBRESIA_EXPIRADA';
-        } else if (activeMembership.endDate <= today) {
+        } else if (!hasActiveMembership) {
           accessGranted = false;
           failureReason = 'MEMBRESIA_EXPIRADA';
         } else {
@@ -64,12 +75,8 @@ export class BiometricsService {
       memberName: member ? `${member.firstName} ${member.lastName}` : 'Persona Desconocida',
       memberNumber: member?.memberNumber || 'DESCONOCIDO',
       photoUrl: member?.photoUrl || '',
-      membershipType: member
-        ? this.db.memberships.find((ms) => ms.memberId === member!.id)?.planName || 'Sin Plan'
-        : 'N/A',
-      membershipEndDate: member
-        ? this.db.memberships.find((ms) => ms.memberId === member!.id)?.endDate || 'N/A'
-        : 'N/A',
+      membershipType: member ? resolvedMembership?.planName || 'Sin Plan' : 'N/A',
+      membershipEndDate: member ? resolvedMembership?.endDate || 'N/A' : 'N/A',
       accessGranted,
       failureReason,
       scannedAt: getMXTimestamp(),

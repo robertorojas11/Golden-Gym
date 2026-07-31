@@ -11,6 +11,8 @@ export const useMemberStore = defineStore('member', () => {
   const activePayments = ref<any[]>([]);
   const selectedMemberDocuments = ref<any[]>([]);
 
+  const avatarUrls = new Map<string, string>();
+
   const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
   function getHeaders() {
@@ -21,12 +23,37 @@ export const useMemberStore = defineStore('member', () => {
     };
   }
 
+  async function loadAvatar(member: any, force = false) {
+    const previous = avatarUrls.get(member.id);
+    if (!member.hasPhoto) {
+      if (previous) URL.revokeObjectURL(previous);
+      avatarUrls.delete(member.id);
+      const { photoUrl, ...withoutPhoto } = member;
+      return withoutPhoto;
+    }
+    if (previous && !force) return { ...member, photoUrl: previous };
+    try {
+      const response = await fetch(`${API_URL}/members/${member.id}/photo`, { headers: getHeaders() });
+      if (!response.ok) return member;
+      const photoUrl = URL.createObjectURL(await response.blob());
+      if (previous) URL.revokeObjectURL(previous);
+      avatarUrls.set(member.id, photoUrl);
+      return { ...member, photoUrl };
+    } catch {
+      return member;
+    }
+  }
+
+  async function hydrateAvatars(summaries: any[]) {
+    return Promise.all(summaries.map((summary) => loadAvatar(summary)));
+  }
+
   async function fetchMembers(query?: string) {
     try {
       const url = query ? `${API_URL}/members/search?q=${query}` : `${API_URL}/members`;
       const res = await fetch(url, { headers: getHeaders() });
       if (res.ok) {
-        members.value = await res.json();
+        members.value = await hydrateAvatars(await res.json());
       }
     } catch (e) {
       console.error(e);
@@ -46,25 +73,15 @@ export const useMemberStore = defineStore('member', () => {
 
   async function fetchMemberDetail(id: string) {
     try {
-      const memberRes = await fetch(`${API_URL}/members/${id}`, { headers: getHeaders() });
-      if (memberRes.ok) {
-        selectedMember.value = await memberRes.json();
-      }
-
-      // Fetch memberships
-      const msRes = await fetch(`${API_URL}/memberships/member/${id}`, { headers: getHeaders() });
-      if (msRes.ok) {
-        activeMemberships.value = await msRes.json();
-      }
-
-      // Fetch payments
-      const payRes = await fetch(`${API_URL}/payments/member/${id}`, { headers: getHeaders() });
-      if (payRes.ok) {
-        activePayments.value = await payRes.json();
-      }
-      
-      // Fetch documents
-      await fetchMemberDocuments(id);
+      const [memberRes, msRes, payRes] = await Promise.all([
+        fetch(`${API_URL}/members/${id}`, { headers: getHeaders() }),
+        fetch(`${API_URL}/memberships/member/${id}`, { headers: getHeaders() }),
+        fetch(`${API_URL}/payments/member/${id}`, { headers: getHeaders() }),
+      ]);
+      if (memberRes.ok) selectedMember.value = await memberRes.json();
+      if (msRes.ok) activeMemberships.value = await msRes.json();
+      if (payRes.ok) activePayments.value = await payRes.json();
+      selectedMemberDocuments.value = [];
     } catch (e) {
       console.error(e);
     }
@@ -78,8 +95,14 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(member),
       });
       if (res.ok) {
-        await fetchMembers();
         const data = await res.json();
+        const summary = await loadAvatar({
+          id: data.id, memberNumber: data.memberNumber, firstName: data.firstName, lastName: data.lastName,
+          gender: data.gender, email: data.email, phone: data.phone, registrationDate: data.registrationDate,
+          isActive: data.isActive, noPaymentRequired: data.noPaymentRequired, hasPhoto: !!data.photoUrl,
+          activePlanId: null, activePlanName: null, hasActiveMembership: false,
+        });
+        members.value.unshift(summary);
         syncStore.registerModification('CREACION_MIEMBRO', `Miembro registrado: ${member.firstName} ${member.lastName}`);
         return data;
       }
@@ -90,6 +113,7 @@ export const useMemberStore = defineStore('member', () => {
   }
 
   async function updateMember(id: string, member: any) {
+    const photoChanged = Object.prototype.hasOwnProperty.call(member, 'photoUrl');
     try {
       const res = await fetch(`${API_URL}/members/${id}`, {
         method: 'PUT',
@@ -97,8 +121,15 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(member),
       });
       if (res.ok) {
-        await fetchMemberDetail(id);
-        await fetchMembers();
+        const data = await res.json();
+        selectedMember.value = data;
+        const index = members.value.findIndex((item) => item.id === id);
+        if (index >= 0) {
+          const summary = { ...members.value[index], firstName: data.firstName, lastName: data.lastName,
+            gender: data.gender, email: data.email, phone: data.phone, isActive: data.isActive,
+            noPaymentRequired: data.noPaymentRequired, hasPhoto: !!data.photoUrl };
+          members.value[index] = await loadAvatar(summary, photoChanged);
+        }
         syncStore.registerModification('EDICION_MIEMBRO', `Datos actualizados de: ${member.firstName} ${member.lastName}`);
         return true;
       }
@@ -117,8 +148,10 @@ export const useMemberStore = defineStore('member', () => {
         headers: getHeaders(),
       });
       if (res.ok) {
+        const data = await res.json();
+        const index = members.value.findIndex((item) => item.id === id);
+        if (index >= 0) members.value[index] = { ...members.value[index], isActive: data.isActive };
         selectedMember.value = null;
-        await fetchMembers();
         syncStore.registerModification('DESACTIVACION_MIEMBRO', `Miembro desactivado: ${name}`);
         return true;
       }
@@ -138,10 +171,10 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify({ isActive: true }),
       });
       if (res.ok) {
-        await fetchMembers();
-        if (selectedMember.value && selectedMember.value.id === id) {
-          await fetchMemberDetail(id);
-        }
+        const data = await res.json();
+        const index = members.value.findIndex((item) => item.id === id);
+        if (index >= 0) members.value[index] = { ...members.value[index], isActive: true };
+        if (selectedMember.value?.id === id) selectedMember.value = data;
         syncStore.registerModification('REACTIVACION_MIEMBRO', `Miembro reactivado: ${name}`);
         return true;
       }
@@ -173,8 +206,8 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        await fetchMemberDetail(memberId);
         const data = await res.json();
+        activeMemberships.value.unshift(data);
         syncStore.registerModification('ASIGNACION_PLAN', `Plan ${planName} asignado a ${memberName}`);
         return data;
       }
@@ -197,7 +230,24 @@ export const useMemberStore = defineStore('member', () => {
       });
       if (res.ok) {
         const createdPayment = await res.json();
-        await fetchMemberDetail(payment.memberId);
+        activePayments.value.unshift(createdPayment);
+        if (createdPayment.isFullyPaid) {
+          const activated = activeMemberships.value.find((membership) =>
+            membership.id === createdPayment.membershipId ||
+            membership.parentMembershipId === createdPayment.membershipId,
+          );
+          activeMemberships.value = activeMemberships.value.map((membership) =>
+            membership.id === createdPayment.membershipId ||
+            membership.parentMembershipId === createdPayment.membershipId
+              ? { ...membership, status: 'ACTIVE' } : membership,
+          );
+          const activatedMemberIds = new Set([payment.memberId, ...(activated?.beneficiaryIds || [])]);
+          members.value = members.value.map((member) => activatedMemberIds.has(member.id)
+            ? { ...member, hasActiveMembership: true, activePlanId: activated?.planId || null,
+                activePlanName: activated?.planName || null }
+            : member,
+          );
+        }
         syncStore.registerModification('REGISTRO_PAGO', `Pago registrado para ${memberName}: $${amountMXN.toLocaleString('es-MX')} MXN`);
         return createdPayment;
       }
@@ -251,6 +301,9 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify(membershipData),
       });
       if (res.ok) {
+        const data = await res.json();
+        const index = activeMemberships.value.findIndex((membership) => membership.id === id);
+        if (index >= 0) activeMemberships.value[index] = { ...activeMemberships.value[index], ...data };
         syncStore.registerModification('EDICION_MEMBRESIA', `Membresía modificada ID: ${id}`);
         return true;
       }
@@ -279,7 +332,8 @@ export const useMemberStore = defineStore('member', () => {
         body: JSON.stringify({ summary, fileData }),
       });
       if (res.ok) {
-        await fetchMemberDocuments(memberId);
+        const document = await res.json();
+        selectedMemberDocuments.value.unshift(document);
         syncStore.registerModification('DOCUMENTO_SUBIDO', `Documento '${summary}' guardado.`);
         return true;
       }
@@ -296,7 +350,7 @@ export const useMemberStore = defineStore('member', () => {
         headers: getHeaders(),
       });
       if (res.ok) {
-        await fetchMemberDocuments(memberId);
+        selectedMemberDocuments.value = selectedMemberDocuments.value.filter((document) => document.id !== docId);
         syncStore.registerModification('DOCUMENTO_ELIMINADO', `Documento eliminado.`);
         return true;
       }
@@ -304,6 +358,20 @@ export const useMemberStore = defineStore('member', () => {
       console.error(e);
     }
     return false;
+  }
+
+  async function downloadMemberDocument(memberId: string, document: any) {
+    const response = await fetch(`${API_URL}/members/${memberId}/documents/${document.id}/download`, {
+      headers: getHeaders(),
+    });
+    if (!response.ok) return false;
+    const url = URL.createObjectURL(await response.blob());
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = `${document.summary}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+    return true;
   }
 
   return {
@@ -328,5 +396,6 @@ export const useMemberStore = defineStore('member', () => {
     fetchMemberDocuments,
     uploadMemberDocument,
     deleteMemberDocument,
+    downloadMemberDocument,
   };
 });

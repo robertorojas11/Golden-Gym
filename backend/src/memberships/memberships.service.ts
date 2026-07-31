@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { MockDatabase, Membership, MembershipPlan, getMXDate } from '../mock-db';
+import { resolveMembershipForAccess } from './membership-resolver';
 
 @Injectable()
 export class MembershipsService {
@@ -46,16 +47,12 @@ export class MembershipsService {
   async findActiveMembership(memberId: string): Promise<Membership | undefined> {
     await this.db.updateExpiredMemberships();
     const today = getMXDate();
-    return this.db.memberships.find(
-      (m) =>
-        m.memberId === memberId &&
-        m.status === 'ACTIVE' &&
-        m.startDate <= today &&
-        m.endDate > today,
-    );
+    const resolved = resolveMembershipForAccess(this.db.memberships, memberId, today);
+    return resolved?.status === 'ACTIVE' && resolved.startDate <= today && resolved.endDate > today
+      ? resolved : undefined;
   }
 
-  async assignPlan(memberId: string, planId: string, customStartDate?: string, additionalMemberIds?: string[]): Promise<Membership> {
+  async assignPlan(memberId: string, planId: string, customStartDate?: string, additionalMemberIds?: string[]): Promise<any> {
     await this.db.updateExpiredMemberships();
     const plan = this.db.plans.find((p) => p.id === planId);
     if (!plan) {
@@ -139,11 +136,14 @@ export class MembershipsService {
     this.db.memberships.push(newMembership);
     await this.db.saveMembership(newMembership);
 
+    const beneficiaryIds: string[] = [];
+
     // Save child memberships if it's a group plan
     if (plan.isGroup && additionalMemberIds && additionalMemberIds.length > 0) {
       const limit = (plan.maxMembers || 1) - 1;
       const selectedAddIds = additionalMemberIds.slice(0, limit);
       for (const addId of selectedAddIds) {
+        beneficiaryIds.push(addId);
         const childMs: Membership = {
           id: randomUUID(),
           memberId: addId,
@@ -159,7 +159,7 @@ export class MembershipsService {
       }
     }
 
-    return newMembership;
+    return { ...newMembership, beneficiaryIds };
   }
 
   async cancelMembership(id: string): Promise<Membership> {

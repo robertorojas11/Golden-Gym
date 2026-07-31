@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { MembersService } from './members.service';
 import { JwtAuthGuard } from '../auth/auth.module';
 import { RolesGuard } from '../auth/roles.guard';
@@ -26,6 +27,18 @@ export class MembersController {
   @RequirePermissions('manage:access')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Get(':id/photo')
+  @RequirePermissions('manage:access')
+  getPhoto(@Param('id') id: string, @Res() response: Response) {
+    const photo = this.service.findOne(id).photoUrl;
+    if (!photo) return response.status(404).end();
+    const match = photo.match(/^data:([^;,]+);base64,(.+)$/);
+    if (!match) return response.redirect(photo);
+    response.setHeader('Content-Type', match[1]);
+    response.setHeader('Cache-Control', 'private, max-age=3600');
+    return response.send(Buffer.from(match[2], 'base64'));
   }
 
   @Post()
@@ -58,6 +71,16 @@ export class MembersController {
   @RequirePermissions('manage:access')
   findDocuments(@Param('id') id: string) {
     return this.service.findDocuments(id);
+  }
+
+  @Get(':id/documents/:docId/download')
+  @RequirePermissions('manage:access')
+  downloadDocument(@Param('id') id: string, @Param('docId') docId: string, @Res() response: Response) {
+    const document = this.service.findDocument(id, docId);
+    const match = document.fileData.match(/^data:([^;,]+);base64,(.+)$/);
+    response.setHeader('Content-Type', match?.[1] || document.mimeType || 'application/octet-stream');
+    response.setHeader('Content-Disposition', `attachment; filename="${document.summary.replace(/["\\]/g, '_')}.pdf"`);
+    return response.send(match ? Buffer.from(match[2], 'base64') : Buffer.from(document.fileData, 'base64'));
   }
 
   @Post(':id/documents')

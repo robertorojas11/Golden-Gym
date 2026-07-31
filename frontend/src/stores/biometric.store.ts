@@ -20,6 +20,11 @@ export const useBiometricStore = defineStore('biometric', () => {
   const activeResult = ref<ScanResult | null>(null);
   const logs = ref<any[]>([]);
   let resetTimeoutId: any = null;
+  const handledScanIds = new Set<string>();
+  function rememberScanId(scanId: string) {
+    handledScanIds.add(scanId);
+    setTimeout(() => handledScanIds.delete(scanId), 60000);
+  }
 
   const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`; // Target Docker backend port or local dev
 
@@ -30,6 +35,8 @@ export const useBiometricStore = defineStore('biometric', () => {
     channel.onmessage = async (event) => {
       if (event.data?.type === 'CHECKIN_EVENT') {
         const data = event.data.data;
+        if (data.scanId && handledScanIds.has(data.scanId)) return;
+        if (data.scanId) rememberScanId(data.scanId);
         
         // Reset local timer if any
         if (resetTimeoutId) {
@@ -42,9 +49,11 @@ export const useBiometricStore = defineStore('biometric', () => {
         scanStep.value = 'scanning';
         activeResult.value = null;
 
-        // Step 2: Matched transition
-        scanStep.value = 'matched';
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        // Unknown scans go directly to the denied result; never claim a match.
+        if (data.matched) {
+          scanStep.value = 'matched';
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
 
         // Step 3: Reveal Result (Welcome or Denied)
         activeResult.value = data;
@@ -61,8 +70,9 @@ export const useBiometricStore = defineStore('biometric', () => {
     };
   }
 
-  async function triggerSimulatedScan(memberId?: string, forceResult?: string) {
-    if (isScanning.value) return;
+  async function triggerSimulatedScan(memberId?: string, forceResult?: string, scanId?: string) {
+    if (isScanning.value || (scanId && handledScanIds.has(scanId))) return;
+    if (scanId) rememberScanId(scanId);
 
     // If there is a pending auto-reset timer, clear it because another user is captured
     if (resetTimeoutId) {
@@ -78,16 +88,15 @@ export const useBiometricStore = defineStore('biometric', () => {
       const response = await fetch(`${API_URL}/biometric/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, forceResult }),
+        body: JSON.stringify({ memberId, forceResult, scanId }),
       });
       
-      const data = await response.json();
+      const data = { ...(await response.json()), scanId };
       
-      // Step 2: "Fingerprint matched"
-      scanStep.value = 'matched';
-      
-      // Simulate visual match transition delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (data.matched) {
+        scanStep.value = 'matched';
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
 
       // Step 3: Reveal Result (Welcome or Denied)
       activeResult.value = data;
@@ -239,7 +248,9 @@ export const useBiometricStore = defineStore('biometric', () => {
       try {
         const data = JSON.parse(event.data);
         if (data.event === 'scan_match' && data.memberId) {
-          triggerSimulatedScan(data.memberId);
+          triggerSimulatedScan(data.memberId, undefined, data.scanId);
+        } else if (data.event === 'scan_unknown') {
+          triggerSimulatedScan(undefined, 'denied_unknown', data.scanId);
         }
       } catch (e) {
         // Ignorar mensajes de enrolamiento

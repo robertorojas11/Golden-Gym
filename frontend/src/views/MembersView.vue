@@ -111,13 +111,10 @@ async function handleDeleteDocument(docId: string) {
   }
 }
 
-function downloadDocument(doc: any) {
-  const linkSource = doc.fileData;
-  const downloadLink = document.createElement("a");
-  const fileName = `${doc.summary}.pdf`;
-  downloadLink.href = linkSource;
-  downloadLink.download = fileName;
-  downloadLink.click();
+async function downloadDocument(doc: any) {
+  if (!memberStore.selectedMember) return;
+  const success = await memberStore.downloadMemberDocument(memberStore.selectedMember.id, doc);
+  if (!success) triggerToast('No se pudo descargar el documento.');
 }
 
 // Member Registration Modal States
@@ -430,12 +427,20 @@ watch(searchQuery, (newVal) => {
 
 async function selectMember(id: string) {
   isDetailLoading.value = true;
-  await memberStore.fetchMemberDetail(id);
-  await biometricStore.fetchMemberLogs(id);
-  await biometricStore.fetchMemberFingerprints(id);
   activeTab.value = 'overview';
+  await memberStore.fetchMemberDetail(id);
+  biometricStore.memberLogs = [];
+  biometricStore.enrolledFingerprints = [];
   isDetailLoading.value = false;
 }
+
+watch(activeTab, async (tab) => {
+  const memberId = memberStore.selectedMember?.id;
+  if (!memberId) return;
+  if (tab === 'activity') await biometricStore.fetchMemberLogs(memberId);
+  if (tab === 'biometrics') await biometricStore.fetchMemberFingerprints(memberId);
+  if (tab === 'documents') await memberStore.fetchMemberDocuments(memberId);
+});
 
 const noteText = ref('');
 const showNoteInput = ref(false);
@@ -459,6 +464,7 @@ async function saveNote() {
     body: JSON.stringify({ note: noteText.value })
   });
   if (res.ok) {
+    memberStore.selectedMember = await res.json();
     syncStore.registerModification('CREACION_NOTA', `Nota agregada para miembro: ${memberStore.selectedMember.firstName} ${memberStore.selectedMember.lastName}`);
     noteText.value = '';
     showNoteInput.value = false;
@@ -658,6 +664,7 @@ const fileEditInputRef = ref<any>(null);
 const videoEditRef = ref<any>(null);
 const cameraEditActive = ref(false);
 const capturedEditPhoto = ref<string | null>(null);
+const editPhotoChanged = ref(false);
 let mediaEditStream: MediaStream | null = null;
 
 function triggerEditFileSelect() {
@@ -673,6 +680,7 @@ function onEditFileChange(event: any) {
     reader.onload = (e: any) => {
       editMemberForm.value.photoUrl = e.target.result;
       capturedEditPhoto.value = null;
+      editPhotoChanged.value = true;
     };
     reader.readAsDataURL(file);
   }
@@ -712,6 +720,7 @@ function captureEditSnapshot() {
       const dataUrl = canvas.toDataURL('image/jpeg');
       capturedEditPhoto.value = dataUrl;
       editMemberForm.value.photoUrl = dataUrl;
+      editPhotoChanged.value = true;
     }
     stopEditCamera();
   }
@@ -720,6 +729,7 @@ function captureEditSnapshot() {
 function removeEditPhoto() {
   editMemberForm.value.photoUrl = '';
   capturedEditPhoto.value = null;
+  editPhotoChanged.value = true;
   stopEditCamera();
 }
 
@@ -745,6 +755,7 @@ function openEditMemberModal() {
     noPaymentRequired: m.noPaymentRequired || false,
   };
   capturedEditPhoto.value = null;
+  editPhotoChanged.value = false;
   cameraEditActive.value = false;
   showEditMemberModal.value = true;
 }
@@ -758,7 +769,9 @@ async function handleSaveMember() {
   }
   isSubmitting.value = true;
   try {
-    const success = await memberStore.updateMember(memberStore.selectedMember.id, editMemberForm.value);
+    const payload: any = { ...editMemberForm.value };
+    if (!editPhotoChanged.value) delete payload.photoUrl;
+    const success = await memberStore.updateMember(memberStore.selectedMember.id, payload);
     if (success) {
       showEditMemberModal.value = false;
       triggerToast('Datos de perfil actualizados correctamente.');

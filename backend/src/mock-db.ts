@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Pool, types } from 'pg';
 import { createHash, randomUUID } from 'crypto';
+import { resolveMembershipForAccess } from './memberships/membership-resolver';
 
 // Override the parsing of PostgreSQL DATE type (OID 1082) to keep it as a raw string 'YYYY-MM-DD'.
 // This prevents the node-postgres driver from parsing DATE to a local/UTC Date object,
@@ -463,7 +464,7 @@ export class MockDatabase implements OnModuleInit {
     const logsRes = await this.pool.query('SELECT * FROM access_logs ORDER BY scanned_at DESC');
     this.accessLogs = logsRes.rows.map(row => {
       const member = this.members.find(m => m.id === row.member_id);
-      const ms = this.memberships.find(m => m.memberId === row.member_id && m.status === 'ACTIVE');
+      const ms = row.member_id ? resolveMembershipForAccess(this.memberships, row.member_id, getMXDate(row.scanned_at)) : undefined;
       return {
         id: row.id,
         memberId: row.member_id,
@@ -552,70 +553,61 @@ export class MockDatabase implements OnModuleInit {
     `, [user.id, user.email, user.passwordHash, user.firstName, user.lastName, user.roleId, user.isActive, user.mustChangePassword]);
   }
 
-  async saveMember(member: Member) {
-    await this.pool.query(`
-      INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, is_active, created_by, no_payment_required)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-      ON CONFLICT (id) DO UPDATE SET
-      	first_name = $3,
-      	last_name = $4,
-      	gender = $5,
-      	birth_date = $6,
-      	email = $7,
-      	phone = $8,
-      	street = $9,
-      	number = $10,
-      	city = $11,
-      	state = $12,
-      	postal_code = $13,
-      	emergency_contact_name = $14,
-      	emergency_contact_phone = $15,
-      	emergency_contact_relationship = $16,
-      	is_active = $17,
-        no_payment_required = $19,
-      	updated_at = CURRENT_TIMESTAMP
-    `, [
-      member.id,
-      member.memberNumber,
-      member.firstName,
-      member.lastName,
-      member.gender,
-      member.birthDate || null,
-      member.email || null,
-      member.phone,
-      member.street || null,
-      member.number || null,
-      member.city || null,
-      member.state || null,
-      member.postalCode || null,
-      member.emergencyContactName || null,
-      member.emergencyContactPhone || null,
-      member.emergencyContactRelationship || null,
-      member.isActive,
-      member.createdBy || null,
-      member.noPaymentRequired || false
-    ]);
+  async saveMember(member: Member, options: { photoChanged?: boolean; notesChanged?: boolean } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`
+        INSERT INTO members (id, member_number, first_name, last_name, gender, birth_date, email, phone, street, number, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, is_active, created_by, no_payment_required)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ON CONFLICT (id) DO UPDATE SET
+          first_name = $3, last_name = $4, gender = $5, birth_date = $6, email = $7,
+          phone = $8, street = $9, number = $10, city = $11, state = $12,
+          postal_code = $13, emergency_contact_name = $14, emergency_contact_phone = $15,
+          emergency_contact_relationship = $16, is_active = $17, no_payment_required = $19,
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        member.id, member.memberNumber, member.firstName, member.lastName, member.gender,
+        member.birthDate || null, member.email || null, member.phone, member.street || null,
+        member.number || null, member.city || null, member.state || null, member.postalCode || null,
+        member.emergencyContactName || null, member.emergencyContactPhone || null,
+        member.emergencyContactRelationship || null, member.isActive, member.createdBy || null,
+        member.noPaymentRequired || false,
+      ]);
 
-    if (member.photoUrl !== undefined) {
-      await this.pool.query('DELETE FROM member_photos WHERE member_id = $1', [member.id]);
-      if (member.photoUrl) {
-        await this.pool.query(`
-          INSERT INTO member_photos (member_id, photo_url, is_primary)
-          VALUES ($1, $2, TRUE)
-        `, [member.id, member.photoUrl]);
+      if (options.photoChanged) {
+        await client.query('DELETE FROM member_photos WHERE member_id = $1', [member.id]);
+        if (member.photoUrl) {
+          await client.query(
+            'INSERT INTO member_photos (member_id, photo_url, is_primary) VALUES ($1, $2, TRUE)',
+            [member.id, member.photoUrl],
+          );
+        }
       }
-    }
 
-    await this.pool.query('DELETE FROM member_notes WHERE member_id = $1', [member.id]);
-    if (member.notes && member.notes.length > 0) {
-      const adminId = '11111111-1111-1111-1111-111111111111';
-      for (const note of member.notes) {
-        await this.pool.query(`
-          INSERT INTO member_notes (member_id, author_id, note)
-          VALUES ($1, $2, $3)
-        `, [member.id, adminId, note]);
+      if (options.notesChanged) {
+        await client.query('DELETE FROM member_notes WHERE member_id = $1', [member.id]);
+        for (const note of member.notes || []) {
+          await client.query(
+            'INSERT INTO member_notes (member_id, author_id, note) VALUES ($1, $2, $3)',
+            [member.id, '11111111-1111-1111-1111-111111111111', note],
+          );
+        }
       }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
+  }
+
+  async saveMemberNote(memberId: string, note: string) {
+    await this.pool.query(
+      'INSERT INTO member_notes (member_id, author_id, note) VALUES ($1, $2, $3)',
+      [memberId, '11111111-1111-1111-1111-111111111111', note],
+    );
   }
 
   async savePlan(plan: MembershipPlan) {
@@ -719,5 +711,3 @@ export class MockDatabase implements OnModuleInit {
     return true;
   }
 }
-
-

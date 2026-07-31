@@ -15,6 +15,7 @@ namespace BiometricAgent
         private static IntPtr devHandle = IntPtr.Zero;
         private static IntPtr dbHandle = IntPtr.Zero;
         private static bool isRunning = true;
+        private static bool verifyCaptureArmed = true;
         private static List<IWebSocketConnection> activeSockets = new List<IWebSocketConnection>();
 
         // For enrollment process
@@ -260,10 +261,16 @@ namespace BiometricAgent
                     {
                         ProcessEnrollCapture(capTmp, cbCapTmp);
                     }
-                    else
+                    else if (verifyCaptureArmed)
                     {
+                        verifyCaptureArmed = false;
                         ProcessVerifyCapture(capTmp, cbCapTmp);
                     }
+                }
+                else if (!isEnrollMode)
+                {
+                    // Rearm only after the scanner reports that the finger was removed.
+                    verifyCaptureArmed = true;
                 }
 
                 Thread.Sleep(150);
@@ -330,6 +337,7 @@ namespace BiometricAgent
                     BroadcastMessage(JsonConvert.SerializeObject(new
                     {
                         @event = "scan_match",
+                        scanId = Guid.NewGuid().ToString(),
                         memberId = info.MemberId,
                         fingerIndex = info.FingerIndex,
                         score = score
@@ -339,6 +347,7 @@ namespace BiometricAgent
             else
             {
                 Console.WriteLine("[-] Huella capturada no coincide con ningún registro local.");
+                BroadcastMessage(JsonConvert.SerializeObject(new { @event = "scan_unknown", scanId = Guid.NewGuid().ToString() }));
             }
         }
 
