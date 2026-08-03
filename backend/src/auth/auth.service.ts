@@ -18,13 +18,14 @@ export class AuthService {
   }
 
   async login(user: User) {
+    const permissions = this.getEffectivePermissions(user);
     const payload = {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
       roleName: user.roleName,
-      permissions: user.permissions,
+      permissions,
       mustChangePassword: !!user.mustChangePassword,
     };
     
@@ -55,10 +56,29 @@ export class AuthService {
       const parts = token.split('.');
       if (parts.length < 2) return null;
       const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      // Keep existing receptionist sessions compatible when role permissions change.
+      if (payload.roleName === 'receptionist') {
+        payload.permissions = Array.from(new Set([
+          ...(payload.permissions || []),
+          'manage:memberships',
+          'manage:payments',
+          'manage:access',
+        ]));
+      }
       return payload;
     } catch (e) {
       return null;
     }
+  }
+
+  private getEffectivePermissions(user: User): string[] {
+    if (user.roleName !== 'receptionist') return user.permissions;
+    return Array.from(new Set([
+      ...user.permissions,
+      'manage:memberships',
+      'manage:payments',
+      'manage:access',
+    ]));
   }
 
   getUsers() {
@@ -151,7 +171,7 @@ export class AuthService {
       return ['manage:memberships', 'manage:payments', 'manage:access', 'view:reports'];
     }
     if (roleId === '3a5b7c9d-1e33-6655-aacc-88ee99ff0003') {
-      return ['manage:access', 'manage:memberships'];
+      return ['manage:access', 'manage:memberships', 'manage:payments'];
     }
     if (roleId === '5a7b9c1d-3e55-8877-bbdd-ccddeeff0005') {
       return ['manage:access'];

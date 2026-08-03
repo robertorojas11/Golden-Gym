@@ -783,7 +783,7 @@ function formatNumber(val: number) {
               </div>
               <div class="text-right">
                 <p class="text-xs font-bold text-neutral-900">${{ pay.amount }} MXN</p>
-                <p class="text-[9px] font-semibold text-emerald-600 uppercase">{{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}</p>
+                <p class="text-[9px] font-semibold text-emerald-600 uppercase">{{ pay.status === 'PAID' ? 'PAGADO' : 'NO PAGADO' }}</p>
               </div>
             </div>
 

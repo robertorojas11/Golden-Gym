@@ -10,6 +10,8 @@ export class PaymentsService {
     return this.db.payments.map((p) => {
       const user = this.db.users.find((u) => u.id === p.processedBy);
       const member = this.db.members.find((m) => m.id === p.memberId);
+      const membership = this.db.memberships.find((m) => m.id === p.membershipId);
+      const plan = membership ? this.db.plans.find((candidate) => candidate.id === membership.planId) : undefined;
       const children = this.db.memberships.filter((m) => m.parentMembershipId === p.membershipId);
       const beneficiaries = children.map((c) => {
         const m = this.db.members.find((mem) => mem.id === c.memberId);
@@ -20,6 +22,8 @@ export class PaymentsService {
         processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
         memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
         memberNumber: member ? member.memberNumber : 'N/A',
+        planId: plan?.id || membership?.planId || null,
+        planName: plan?.name || membership?.planName || 'Sin plan',
         beneficiaries,
       };
     });
@@ -31,6 +35,8 @@ export class PaymentsService {
       .map((p) => {
         const user = this.db.users.find((u) => u.id === p.processedBy);
         const member = this.db.members.find((m) => m.id === p.memberId);
+        const membership = this.db.memberships.find((m) => m.id === p.membershipId);
+        const plan = membership ? this.db.plans.find((candidate) => candidate.id === membership.planId) : undefined;
         const children = this.db.memberships.filter((m) => m.parentMembershipId === p.membershipId);
         const beneficiaries = children.map((c) => {
           const m = this.db.members.find((mem) => mem.id === c.memberId);
@@ -41,6 +47,8 @@ export class PaymentsService {
           processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
           memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
           memberNumber: member ? member.memberNumber : 'N/A',
+          planId: plan?.id || membership?.planId || null,
+          planName: plan?.name || membership?.planName || 'Sin plan',
           beneficiaries,
         };
       });
@@ -88,7 +96,8 @@ export class PaymentsService {
     // Calculate existing payments and discounts for this billing entity
     const existingPayments = this.db.payments.filter((p) => p.membershipId === billingMs.id);
     const totalPaidSoFar = existingPayments.reduce((sum, p) => sum + p.amount, 0);
-    const totalDiscountSoFar = existingPayments.reduce((sum, p) => sum + p.discount, 0);
+    const totalDiscountSoFar = (billingMs.discount || 0)
+      + existingPayments.reduce((sum, p) => sum + p.discount, 0);
 
     if (totalDiscountSoFar + discount > plan.price) {
       throw new BadRequestException('El descuento total no puede ser mayor al precio de la membresía.');

@@ -25,13 +25,15 @@ export class MembershipsService {
       const children = this.db.memberships.filter((child) => child.parentMembershipId === parentMs.id);
       
       let remainingBalance = 0;
+      let appliedDiscount = parentMs.discount || 0;
       if (m.status === 'PENDING') {
         const plan = this.db.plans.find((p) => p.id === parentMs.planId);
         if (plan) {
           const payments = this.db.payments.filter((p) => p.membershipId === parentMs.id);
           const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
           const totalDiscount = payments.reduce((sum, p) => sum + p.discount, 0);
-          remainingBalance = plan.price - totalDiscount - totalPaid;
+          appliedDiscount += totalDiscount;
+          remainingBalance = plan.price - appliedDiscount - totalPaid;
         }
       }
 
@@ -40,6 +42,7 @@ export class MembershipsService {
         groupParentMemberId: parentMs.memberId,
         beneficiaryIds: children.map((child) => child.memberId),
         remainingBalance,
+        appliedDiscount,
       };
     });
   }
@@ -59,23 +62,34 @@ export class MembershipsService {
       throw new NotFoundException('Membership plan not found');
     }
 
-    // Check if there is already an active membership.
+    // An active membership is valid input for a renewal. If no custom date is
+    // supplied, the new membership is scheduled immediately after it ends.
     const todayStr = getMXDate();
-    const activePlan = this.db.memberships.find(
-      (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate > todayStr
-    );
-
-    if (activePlan) {
-      throw new BadRequestException('El miembro principal ya tiene un plan activo. No se puede asignar otro plan hasta que este expire o sea cancelado.');
+    const previousMembership = [...this.db.memberships]
+      .filter((m) => m.memberId === memberId && !m.parentMembershipId)
+      .sort((a, b) => b.endDate.localeCompare(a.endDate) || b.startDate.localeCompare(a.startDate))[0];
+    let inheritedDiscount = previousMembership?.discount || 0;
+    if (previousMembership) {
+      inheritedDiscount += this.db.payments
+        .filter((payment) => payment.membershipId === previousMembership.id)
+        .reduce((sum, payment) => sum + (payment.discount || 0), 0);
     }
 
-    // Check additional members active plans
+    // Additional members may keep their current active plan when renewing the
+    // same group. They cannot be moved from an unrelated active membership.
     if (additionalMemberIds && additionalMemberIds.length > 0) {
       for (const addId of additionalMemberIds) {
         const activeAdd = this.db.memberships.find(
           (m) => m.memberId === addId && m.status === 'ACTIVE' && m.endDate > todayStr
         );
         if (activeAdd) {
+          const activeParent = activeAdd.parentMembershipId
+            ? this.db.memberships.find((m) => m.id === activeAdd.parentMembershipId)
+            : activeAdd;
+          const mainActive = this.db.memberships.find(
+            (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate > todayStr
+          );
+          if (activeParent?.id === mainActive?.id) continue;
           const addMember = this.db.members.find(m => m.id === addId);
           const addName = addMember ? `${addMember.firstName} ${addMember.lastName}` : addId;
           throw new BadRequestException(`El miembro adicional ${addName} ya tiene un plan activo. No se puede vincular a otro plan.`);
@@ -109,9 +123,9 @@ export class MembershipsService {
     let startDateStr = customStartDate || getMXDate();
 
     if (active && !customStartDate) {
-      const activeEndDate = new Date(active.endDate + 'T00:00:00');
-      activeEndDate.setDate(activeEndDate.getDate() + 1);
-      startDateStr = getMXDate(activeEndDate);
+      // endDate is exclusive throughout access validation, so the renewal
+      // starts on that same date without introducing a one-day gap.
+      startDateStr = active.endDate;
     }
 
     const startDateVal = new Date(startDateStr + 'T00:00:00');
@@ -130,7 +144,8 @@ export class MembershipsService {
       planName: plan.name,
       startDate: startDateStr,
       endDate: getMXDate(endDateVal),
-      status: (isMigratedDate || noPaidRequired) ? 'ACTIVE' : 'PENDING',
+      status: (isMigratedDate || noPaidRequired || inheritedDiscount >= plan.price) ? 'ACTIVE' : 'PENDING',
+      discount: Math.min(inheritedDiscount, plan.price),
     };
 
     this.db.memberships.push(newMembership);
@@ -153,6 +168,7 @@ export class MembershipsService {
           endDate: newMembership.endDate,
           status: newMembership.status,
           parentMembershipId: newMembership.id,
+          discount: newMembership.discount,
         };
         this.db.memberships.push(childMs);
         await this.db.saveMembership(childMs);

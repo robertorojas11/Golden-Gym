@@ -33,8 +33,9 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
 ('2a4b6c8d-0e22-5544-99cc-77dd88ee9902', 'f99066d4-d3a9-4674-9f20-fa7d1be275de'),
 ('2a4b6c8d-0e22-5544-99cc-77dd88ee9902', 'd5d9c228-2d88-469b-98f9-4b476e336b9e');
 
--- Recepcionista (Receptionist) tiene manage:payments, manage:access
+-- Recepcionista (Receptionist) tiene manage:memberships, manage:payments, manage:access
 INSERT INTO role_permissions (role_id, permission_id) VALUES
+('3a5b7c9d-1e33-6655-aacc-88ee99ff0003', 'c5e317e3-0d3c-41c3-bf2e-dce23078cdbe'),
 ('3a5b7c9d-1e33-6655-aacc-88ee99ff0003', 'e6a4b184-b040-410c-be4e-4b2a6ad9a813'),
 ('3a5b7c9d-1e33-6655-aacc-88ee99ff0003', 'f99066d4-d3a9-4674-9f20-fa7d1be275de');
 

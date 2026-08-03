@@ -981,6 +981,10 @@ const memberPendingMemberships = computed(() => {
   return memberStore.activeMemberships.filter((m: any) => m.status === 'PENDING');
 });
 
+const selectedPendingMembership = computed(() => {
+  return memberPendingMemberships.value.find((m: any) => m.id === paymentForm.value.membershipId);
+});
+
 function openRegisterPaymentModal() {
   paymentForm.value = {
     membershipId: '',
@@ -2064,7 +2068,7 @@ const formattedNotes = computed(() => {
                         class="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border font-mono"
                         :class="pay.status === 'PAID' ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20' : 'bg-[#FA2F2A]/10 text-[#FA2F2A] border-[#FA2F2A]/20'"
                       >
-                        {{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}
+                        {{ pay.status === 'PAID' ? 'PAGADO' : 'NO PAGADO' }}
                       </span>
                     </td>
                     <td class="p-3 text-right font-sans">
@@ -2590,6 +2594,17 @@ const formattedNotes = computed(() => {
               class="w-full saas-input font-bold font-mono text-amber-500 text-sm" 
               placeholder="0.00"
             />
+          </div>
+
+          <div
+            v-else-if="selectedPendingMembership?.appliedDiscount > 0"
+            class="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-3"
+          >
+            <label class="block font-bold text-neutral-400 uppercase tracking-wider mb-1">Descuento existente (solo lectura)</label>
+            <p class="font-bold font-mono text-amber-500 text-sm">
+              ${{ selectedPendingMembership.appliedDiscount / 100 }} MXN
+            </p>
+            <p class="text-[10px] text-neutral-500 mt-1">El descuento anterior se conserva y no puede modificarse.</p>
           </div>
 
           <div>

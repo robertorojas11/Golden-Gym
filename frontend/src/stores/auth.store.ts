@@ -25,6 +25,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   function hasPermission(permission: string): boolean {
     if (userRole.value === 'owner') return true;
+    if (userRole.value === 'receptionist' && [
+      'manage:memberships',
+      'manage:payments',
+      'manage:access',
+    ].includes(permission)) return true;
     return userPermissions.value.includes(permission);
   }
 

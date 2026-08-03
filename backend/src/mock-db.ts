@@ -118,6 +118,7 @@ export interface Membership {
   endDate: string;
   status: 'PENDING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   parentMembershipId?: string;
+  discount?: number; // inherited discount in cents MXN
 }
 
 export interface Payment {
@@ -130,7 +131,7 @@ export interface Payment {
   discount?: number; // in cents MXN
   referenceNumber: string;
   paymentDate: string;
-  status: 'PAID' | 'REFUNDED' | 'FAILED';
+  status: 'PAID' | 'FAILED';
   processedBy: string;
   processedByName?: string;
 }
@@ -204,6 +205,7 @@ export class MockDatabase implements OnModuleInit {
         await this.pool.query('ALTER TABLE members DROP CONSTRAINT IF EXISTS members_email_key');
         await this.pool.query('ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS max_members INT DEFAULT 1');
         await this.pool.query('ALTER TABLE memberships ADD COLUMN IF NOT EXISTS parent_membership_id UUID REFERENCES memberships(id) ON DELETE CASCADE');
+        await this.pool.query('ALTER TABLE memberships ADD COLUMN IF NOT EXISTS discount INT DEFAULT 0 NOT NULL');
         await this.pool.query('ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount INT DEFAULT 0 NOT NULL');
 
         // Ensure member_fingerprints table exists
@@ -433,6 +435,7 @@ export class MockDatabase implements OnModuleInit {
         endDate: row.end_date ? getMXDate(row.end_date) : '',
         status: row.status,
         parentMembershipId: row.parent_membership_id || undefined,
+        discount: row.discount || 0,
       };
     });
 
@@ -628,15 +631,16 @@ export class MockDatabase implements OnModuleInit {
 
   async saveMembership(membership: Membership) {
     await this.pool.query(`
-      INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status, parent_membership_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO memberships (id, member_id, plan_id, start_date, end_date, status, parent_membership_id, discount)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (id) DO UPDATE SET
         status = $6,
         start_date = $4,
         end_date = $5,
         parent_membership_id = $7,
+        discount = $8,
         updated_at = CURRENT_TIMESTAMP
-    `, [membership.id, membership.memberId, membership.planId, membership.startDate || null, membership.endDate || null, membership.status, membership.parentMembershipId || null]);
+    `, [membership.id, membership.memberId, membership.planId, membership.startDate || null, membership.endDate || null, membership.status, membership.parentMembershipId || null, membership.discount || 0]);
   }
 
   async savePayment(payment: Payment) {

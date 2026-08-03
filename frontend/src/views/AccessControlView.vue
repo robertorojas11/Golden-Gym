@@ -3,10 +3,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useBiometricStore } from '../stores/biometric.store';
 import { useMemberStore } from '../stores/member.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useRouter } from 'vue-router';
 
 const store = useBiometricStore();
 const memberStore = useMemberStore();
 const authStore = useAuthStore();
+const router = useRouter();
 
 const timeString = ref('');
 const dateString = ref('');
@@ -48,6 +50,11 @@ function clearManualSearch() {
   manualSearchQuery.value = '';
   selectedSimMemberId.value = '';
   showSearchResults.value = false;
+}
+
+function openMemberProfile(memberId?: string) {
+  if (!memberId) return;
+  router.push({ path: '/members', query: { selectMemberId: memberId } });
 }
 
 let clockInterval: any = null;
@@ -331,7 +338,13 @@ onUnmounted(() => {
                   :class="log.accessGranted ? 'bg-emerald-500' : 'bg-red-500'"
                 ></div>
                 <div class="flex-grow">
-                  <p class="font-semibold text-white">{{ log.memberName }}</p>
+                  <button
+                    type="button"
+                    @click="openMemberProfile(log.memberId)"
+                    class="font-semibold text-white hover:text-[#EF9F27] hover:underline underline-offset-2 text-left cursor-pointer transition-colors"
+                  >
+                    {{ log.memberName }}
+                  </button>
                   <p class="text-[10px] text-neutral-400 font-mono">
                     {{ new Date(log.scannedAt).toLocaleTimeString() }} • {{ log.memberNumber }}
                   </p>

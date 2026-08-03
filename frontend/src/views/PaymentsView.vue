@@ -11,8 +11,8 @@ const payments = ref<any[]>([]);
 const searchText = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
-const selectedStatus = ref('ALL');
 const selectedMethod = ref('ALL');
+const selectedPlan = ref('ALL');
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
@@ -76,26 +76,33 @@ const filteredPayments = computed(() => {
       if (payTime > toTime) return false;
     }
 
-    // 3. Status
-    if (selectedStatus.value !== 'ALL') {
-      if (pay.status !== selectedStatus.value) return false;
-    }
-
-    // 4. Method
+    // 3. Method
     if (selectedMethod.value !== 'ALL') {
       if (!matchMethod(pay.paymentMethodName, selectedMethod.value)) return false;
     }
 
+    // 4. Membership plan
+    if (selectedPlan.value !== 'ALL' && pay.planId !== selectedPlan.value) return false;
+
     return true;
   });
+});
+
+const availablePlans = computed(() => {
+  const plans = new Map<string, string>();
+  for (const payment of payments.value) {
+    if (payment.planId) plans.set(payment.planId, payment.planName || 'Sin plan');
+  }
+  return Array.from(plans, ([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 });
 
 function clearFilters() {
   searchText.value = '';
   dateFrom.value = '';
   dateTo.value = '';
-  selectedStatus.value = 'ALL';
   selectedMethod.value = 'ALL';
+  selectedPlan.value = 'ALL';
 }
 
 // Success toast state
@@ -151,8 +158,11 @@ async function generateReport() {
   if (searchText.value) filters.push(`Búsqueda: "${searchText.value}"`);
   if (dateFrom.value) filters.push(`Desde: ${dateFrom.value}`);
   if (dateTo.value) filters.push(`Hasta: ${dateTo.value}`);
-  if (selectedStatus.value !== 'ALL') filters.push(`Estatus: ${selectedStatus.value}`);
   if (selectedMethod.value !== 'ALL') filters.push(`Método: ${selectedMethod.value}`);
+  if (selectedPlan.value !== 'ALL') {
+    const plan = availablePlans.value.find((item) => item.id === selectedPlan.value);
+    filters.push(`Tipo de plan: ${plan?.name || selectedPlan.value}`);
+  }
   
   if (filters.length > 0) {
     filterStr += filters.join(' | ');
@@ -212,7 +222,7 @@ async function generateReport() {
       totalSum += amountMXN;
     }
     doc.text(`$${amountMXN.toFixed(2)}`, 180, y, { align: 'right' });
-    doc.text(pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO', 201, y, { align: 'right' });
+    doc.text(pay.status === 'PAID' ? 'PAGADO' : 'NO PAGADO', 201, y, { align: 'right' });
 
     y += 7;
   }
@@ -233,14 +243,14 @@ async function generateReport() {
   <div class="p-6 max-w-7xl mx-auto space-y-6">
     <div>
       <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Libro Mayor de Pagos</h2>
-      <p class="text-xs text-neutral-500 mt-1">Historial de transacciones financieras y reembolsos</p>
+      <p class="text-xs text-neutral-500 mt-1">Historial de transacciones financieras</p>
     </div>
 
     <!-- Toolbar de Filtros -->
     <div class="p-5 bg-neutral-950 border border-neutral-900 rounded-2xl shadow-lg space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
         <!-- Búsqueda por texto -->
-        <div class="md:col-span-4 space-y-1.5">
+        <div class="md:col-span-3 space-y-1.5">
           <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Buscar</label>
           <input 
             v-model="searchText"
@@ -270,21 +280,20 @@ async function generateReport() {
           />
         </div>
 
-        <!-- Estatus Dropdown -->
+        <!-- Tipo de plan Dropdown -->
         <div class="md:col-span-2 space-y-1.5">
-          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Estatus</label>
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Tipo de plan</label>
           <select 
-            v-model="selectedStatus"
+            v-model="selectedPlan"
             class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
           >
             <option value="ALL">Todos</option>
-            <option value="PAID">Pagado</option>
-            <option value="REFUNDED">Reembolsado</option>
+            <option v-for="plan in availablePlans" :key="plan.id" :value="plan.id">{{ plan.name }}</option>
           </select>
         </div>
 
         <!-- Método Dropdown -->
-        <div class="md:col-span-2 space-y-1.5">
+        <div class="md:col-span-3 space-y-1.5">
           <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Método</label>
           <select 
             v-model="selectedMethod"
@@ -328,6 +337,7 @@ async function generateReport() {
             <tr class="bg-neutral-50 text-neutral-500 font-bold border-b border-neutral-100">
               <th class="p-3">Ref. Transacción</th>
               <th class="p-3">Miembro</th>
+              <th class="p-3">Tipo de plan</th>
               <th class="p-3">Método</th>
               <th class="p-3">Fecha de Cobro</th>
               <th class="p-3">Procesado por</th>
@@ -342,6 +352,7 @@ async function generateReport() {
                 {{ pay.memberName }}
                 <span class="block text-[10px] text-neutral-400 font-mono font-normal mt-0.5">{{ pay.memberNumber }}</span>
               </td>
+              <td class="p-3 text-neutral-600 font-medium">{{ pay.planName || 'Sin plan' }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.paymentMethodName }}</td>
               <td class="p-3 text-neutral-500">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.processedByName || 'Sistema' }}</td>
@@ -349,14 +360,14 @@ async function generateReport() {
               <td class="p-3 text-right">
                 <span 
                   class="px-2 py-0.5 rounded text-[10px] font-bold"
-                  :class="pay.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'"
+                  :class="pay.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-neutral-100 text-neutral-600'"
                 >
-                  {{ pay.status === 'PAID' ? 'PAGADO' : 'REEMBOLSADO' }}
+                  {{ pay.status === 'PAID' ? 'PAGADO' : 'NO PAGADO' }}
                 </span>
               </td>
             </tr>
             <tr v-if="filteredPayments.length === 0">
-              <td colspan="7" class="p-12 text-center">
+              <td colspan="8" class="p-12 text-center">
                 <div class="flex flex-col items-center justify-center space-y-4">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
