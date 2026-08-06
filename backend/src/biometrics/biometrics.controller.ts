@@ -15,7 +15,7 @@ export class BiometricsController {
 
   @Get('logs')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @RequirePermissions('view:reports')
+  @RequirePermissions('manage:access')
   getLogs(@Query('memberId') memberId?: string) {
     return this.service.getAccessLogs(memberId);
   }

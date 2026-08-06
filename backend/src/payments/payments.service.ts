@@ -20,6 +20,7 @@ export class PaymentsService {
       return {
         ...p,
         processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+        processedByRole: user?.roleName || null,
         memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
         memberNumber: member ? member.memberNumber : 'N/A',
         planId: plan?.id || membership?.planId || null,
@@ -45,6 +46,7 @@ export class PaymentsService {
         return {
           ...p,
           processedByName: user ? `${user.firstName} ${user.lastName}` : 'Desconocido',
+          processedByRole: user?.roleName || null,
           memberName: member ? `${member.firstName} ${member.lastName}` : 'Desconocido',
           memberNumber: member ? member.memberNumber : 'N/A',
           planId: plan?.id || membership?.planId || null,

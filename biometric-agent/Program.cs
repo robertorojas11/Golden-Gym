@@ -343,12 +343,29 @@ namespace BiometricAgent
                         score = score
                     }));
                 }
+                else
+                {
+                    // The SDK can retain an ID that is no longer present in the
+                    // synchronized application map. Treat it as unidentified
+                    // instead of silently ignoring the scan.
+                    Console.WriteLine($"[-] ID de huella {fid} no existe en el mapa sincronizado.");
+                    BroadcastUnknownScan();
+                }
             }
             else
             {
                 Console.WriteLine("[-] Huella capturada no coincide con ningún registro local.");
-                BroadcastMessage(JsonConvert.SerializeObject(new { @event = "scan_unknown", scanId = Guid.NewGuid().ToString() }));
+                BroadcastUnknownScan();
             }
+        }
+
+        private static void BroadcastUnknownScan()
+        {
+            BroadcastMessage(JsonConvert.SerializeObject(new
+            {
+                @event = "scan_unknown",
+                scanId = Guid.NewGuid().ToString()
+            }));
         }
 
         private static void ResetEnrollment()

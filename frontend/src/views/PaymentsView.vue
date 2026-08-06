@@ -13,6 +13,9 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const selectedMethod = ref('ALL');
 const selectedPlan = ref('ALL');
+const selectedUser = ref('ALL');
+const sortField = ref<'DATE' | 'AMOUNT' | 'USER' | 'MEMBER'>('DATE');
+const sortDirection = ref<'DESC' | 'ASC'>('DESC');
 
 const API_URL = `${window.location.protocol}//${window.location.hostname}:3000`;
 
@@ -53,7 +56,7 @@ function matchMethod(payMethodName: string, selected: string): boolean {
 }
 
 const filteredPayments = computed(() => {
-  return payments.value.filter((pay) => {
+  const result = payments.value.filter((pay) => {
     // 1. Text Search
     if (searchText.value) {
       const query = searchText.value.toLowerCase();
@@ -84,7 +87,24 @@ const filteredPayments = computed(() => {
     // 4. Membership plan
     if (selectedPlan.value !== 'ALL' && pay.planId !== selectedPlan.value) return false;
 
+    // 5. Processing user
+    if (selectedUser.value !== 'ALL' && pay.processedBy !== selectedUser.value) return false;
+
     return true;
+  });
+
+  return result.sort((a, b) => {
+    let comparison = 0;
+    if (sortField.value === 'AMOUNT') {
+      comparison = (a.amount || 0) - (b.amount || 0);
+    } else if (sortField.value === 'USER') {
+      comparison = (a.processedByName || '').localeCompare(b.processedByName || '', 'es');
+    } else if (sortField.value === 'MEMBER') {
+      comparison = (a.memberName || '').localeCompare(b.memberName || '', 'es');
+    } else {
+      comparison = new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime();
+    }
+    return sortDirection.value === 'ASC' ? comparison : -comparison;
   });
 });
 
@@ -97,12 +117,33 @@ const availablePlans = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 });
 
+const availableUsers = computed(() => {
+  const users = new Map<string, { id: string; name: string; role: string }>();
+  for (const payment of payments.value) {
+    if (
+      payment.processedBy
+      && ['administrator', 'receptionist'].includes(payment.processedByRole)
+    ) {
+      users.set(payment.processedBy, {
+        id: payment.processedBy,
+        name: payment.processedByName || 'Usuario',
+        role: payment.processedByRole,
+      });
+    }
+  }
+  return Array.from(users.values())
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+});
+
 function clearFilters() {
   searchText.value = '';
   dateFrom.value = '';
   dateTo.value = '';
   selectedMethod.value = 'ALL';
   selectedPlan.value = 'ALL';
+  selectedUser.value = 'ALL';
+  sortField.value = 'DATE';
+  sortDirection.value = 'DESC';
 }
 
 // Success toast state
@@ -163,6 +204,12 @@ async function generateReport() {
     const plan = availablePlans.value.find((item) => item.id === selectedPlan.value);
     filters.push(`Tipo de plan: ${plan?.name || selectedPlan.value}`);
   }
+  if (selectedUser.value !== 'ALL') {
+    const user = availableUsers.value.find((item) => item.id === selectedUser.value);
+    filters.push(`Usuario: ${user?.name || selectedUser.value}`);
+  }
+  const sortLabels = { DATE: 'Fecha', AMOUNT: 'Monto', USER: 'Usuario', MEMBER: 'Miembro' };
+  filters.push(`Orden: ${sortLabels[sortField.value]} ${sortDirection.value === 'ASC' ? 'ascendente' : 'descendente'}`);
   
   if (filters.length > 0) {
     filterStr += filters.join(' | ');
@@ -304,6 +351,46 @@ async function generateReport() {
             <option value="credito">Tarjeta de Crédito</option>
             <option value="debito">Tarjeta de Débito</option>
             <option value="transferencia">Transferencia</option>
+          </select>
+        </div>
+
+        <!-- Usuario procesador -->
+        <div class="md:col-span-4 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Usuario</label>
+          <select
+            v-model="selectedUser"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          >
+            <option value="ALL">Todos</option>
+            <option v-for="user in availableUsers" :key="user.id" :value="user.id">
+              {{ user.name }} — {{ user.role === 'administrator' ? 'Administrador' : 'Recepcionista' }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Campo de orden -->
+        <div class="md:col-span-4 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Ordenar por</label>
+          <select
+            v-model="sortField"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          >
+            <option value="DATE">Fecha</option>
+            <option value="AMOUNT">Monto</option>
+            <option value="USER">Usuario</option>
+            <option value="MEMBER">Miembro</option>
+          </select>
+        </div>
+
+        <!-- Dirección de orden -->
+        <div class="md:col-span-4 space-y-1.5">
+          <label class="block text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono">Dirección</label>
+          <select
+            v-model="sortDirection"
+            class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#FA2F2A]"
+          >
+            <option value="DESC">Descendente</option>
+            <option value="ASC">Ascendente</option>
           </select>
         </div>
       </div>
