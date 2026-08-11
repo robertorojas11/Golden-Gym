@@ -5,6 +5,13 @@ import { useAuthStore } from '../stores/auth.store';
 import { useSyncStore } from '../stores/sync.store';
 import { useBiometricStore } from '../stores/biometric.store';
 import { downloadPaymentReceipt } from '../utils/pdf-receipt';
+import {
+  addDaysToDateString,
+  formatMexicoDate,
+  formatMexicoDateTime,
+  getMexicoDateString,
+  getMexicoYearMonth,
+} from '../utils/mexico-time';
 
 import { useRoute } from 'vue-router';
 const memberStore = useMemberStore();
@@ -14,31 +21,11 @@ const biometricStore = useBiometricStore();
 const route = useRoute();
 
 function formatDateDDMMYYYY(dateInput: any): string {
-  if (!dateInput) return 'N/A';
-  if (typeof dateInput === 'string' && dateInput.includes('-')) {
-    const parts = dateInput.split('T')[0].split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-  }
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return 'N/A';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return dateInput ? formatMexicoDate(dateInput) : 'N/A';
 }
 
 function formatDateTimeDDMMYYYY(dateInput: any): string {
-  if (!dateInput) return 'N/A';
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return 'N/A';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+  return dateInput ? formatMexicoDateTime(dateInput) : 'N/A';
 }
 
 // Estados de carga
@@ -330,7 +317,7 @@ const filteredMembers = computed(() => {
     // 3. Filtro de estatus
     if (filterStatus.value !== 'ALL') {
       if (filterStatus.value === 'ACTIVE') {
-        if (m.isActive === false) return false;
+        if (m.isActive === false || m.hasActiveMembership !== true) return false;
       } else if (filterStatus.value === 'INACTIVE') {
         if (m.isActive !== false) return false;
       } else if (filterStatus.value === 'EXPIRED') {
@@ -1136,14 +1123,8 @@ const eligibleBeneficiaries = computed(() => {
     }
 
     if (m.id === mainId) return false;
-    if (renewPlanForm.value.beneficiaryIds.includes(m.id)) return true;
     if (m.isActive === false) return false;
-    
-    const mMemberships = memberStore.activeMemberships.filter((ms: any) => ms.memberId === m.id);
-    if (mMemberships.length === 0) return true; // Without plan
-    
-    const latestMs = [...mMemberships].sort((a: any, b: any) => b.endDate.localeCompare(a.endDate))[0];
-    return latestMs.status === 'EXPIRED' || latestMs.status === 'CANCELLED';
+    return m.hasActiveMembership !== true;
   });
 });
 
@@ -1153,7 +1134,12 @@ function openRenewPlanModal() {
   const lastMembership = getLastMembership();
   if (lastMembership) {
     renewPlanForm.value.planId = lastMembership.planId;
-    renewPlanForm.value.beneficiaryIds = lastMembership.beneficiaryIds ? [...lastMembership.beneficiaryIds] : [];
+    const membershipEnded = lastMembership.status === 'EXPIRED'
+      || lastMembership.status === 'CANCELLED'
+      || lastMembership.endDate <= getMexicoDateString();
+    renewPlanForm.value.beneficiaryIds = membershipEnded
+      ? []
+      : (lastMembership.beneficiaryIds ? [...lastMembership.beneficiaryIds] : []);
   } else {
     renewPlanForm.value.planId = memberStore.plans[0]?.id || '';
     renewPlanForm.value.beneficiaryIds = [];
@@ -1204,20 +1190,18 @@ async function handleRenewPlan() {
 }
 
 function countDaysExcludingSundays(fromStr: string, toStr: string): number {
-  const start = new Date(fromStr);
-  const end = new Date(toStr);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+  const start = new Date(`${fromStr.slice(0, 10)}T00:00:00Z`);
+  const end = new Date(`${toStr.slice(0, 10)}T00:00:00Z`);
   
   if (end < start) return 0;
   
   let count = 0;
   const current = new Date(start);
   while (current <= end) {
-    if (current.getDay() !== 0) { // 0 is Sunday
+    if (current.getUTCDay() !== 0) { // 0 is Sunday
       count++;
     }
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return count;
 }
@@ -1230,12 +1214,9 @@ const membershipProgress = computed(() => {
   const plan = memberStore.plans.find((p: any) => p.id === activeMs.planId);
   const totalDays = plan ? plan.durationDays : 30;
   
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const start = new Date(activeMs.startDate + 'T00:00:00');
-  const end = new Date(todayStr + 'T00:00:00');
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+  const todayStr = getMexicoDateString();
+  const start = new Date(activeMs.startDate + 'T00:00:00Z');
+  const end = new Date(todayStr + 'T00:00:00Z');
   const diffTime = Math.max(0, end.getTime() - start.getTime());
   const daysPassed = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   const finalDaysPassed = Math.min(totalDays, daysPassed);
@@ -1258,7 +1239,7 @@ const paymentSummary = computed(() => {
   let lastPaymentDate = 'Sin pagos';
   let lastPaymentAmount = 0;
   if (paidPayments.length > 0) {
-    const sorted = [...paidPayments].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+    const sorted = [...paidPayments].sort((a, b) => String(b.paymentDate).localeCompare(String(a.paymentDate)));
     lastPaymentDate = formatDateDDMMYYYY(sorted[0].paymentDate);
     lastPaymentAmount = sorted[0].amount / 100;
   }
@@ -1284,12 +1265,11 @@ const attendanceAnalytics = computed(() => {
   
   let lastVisit = 'Sin visitas';
   if (grantedLogs.length > 0) {
-    const sorted = [...grantedLogs].sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
+    const sorted = [...grantedLogs].sort((a, b) => String(b.scannedAt).localeCompare(String(a.scannedAt)));
     lastVisit = formatDateTimeDDMMYYYY(sorted[0].scannedAt);
   }
   
-  const now = new Date();
-  const currentMonthStr = now.toISOString().substring(0, 7); // "2026-06"
+  const currentMonthStr = getMexicoYearMonth();
   const visitsThisMonth = grantedLogs.filter((l: any) => l.scannedAt.startsWith(currentMonthStr)).length;
   
   return {
@@ -1303,15 +1283,14 @@ const weeklyVisitsTrend = computed(() => {
   const logs = memberActivityLogs.value.filter((l: any) => l.accessGranted);
   const days: string[] = [];
   const counts: number[] = [];
-  const today = new Date();
+  const today = getMexicoDateString();
   
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(today.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = addDaysToDateString(today, -i);
     
     const count = logs.filter((l: any) => l.scannedAt.startsWith(dateStr)).length;
-    const label = d.toLocaleDateString('es-MX', { weekday: 'narrow' }).toUpperCase();
+    const label = new Intl.DateTimeFormat('es-MX', { weekday: 'narrow', timeZone: 'UTC' })
+      .format(new Date(`${dateStr}T00:00:00Z`)).toUpperCase();
     
     days.push(label);
     counts.push(count);
@@ -1331,9 +1310,7 @@ const formattedNotes = computed(() => {
   const m = memberStore.selectedMember;
   return m.notes.map((note: string, idx: number) => {
     // Generar fechas relativas a la fecha de registro
-    const regDate = new Date(m.registrationDate);
-    regDate.setDate(regDate.getDate() + idx);
-    const dateStr = formatDateDDMMYYYY(regDate);
+    const dateStr = formatDateDDMMYYYY(addDaysToDateString(m.registrationDate, idx));
     const timeStr = '10:30';
     return {
       content: note,

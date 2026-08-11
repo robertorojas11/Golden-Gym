@@ -4,6 +4,11 @@ import { useBiometricStore } from '../stores/biometric.store';
 import { useMemberStore } from '../stores/member.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useRouter } from 'vue-router';
+import {
+  formatMexicoClock,
+  formatMexicoLongDate,
+  formatMexicoTime,
+} from '../utils/mexico-time';
 
 const store = useBiometricStore();
 const memberStore = useMemberStore();
@@ -61,13 +66,8 @@ let clockInterval: any = null;
 
 function updateClock() {
   const now = new Date();
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-  timeString.value = `${hours}:${minutes}:${seconds}`;
-
-  const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  dateString.value = now.toLocaleDateString('es-MX', options);
+  timeString.value = formatMexicoClock(now);
+  dateString.value = formatMexicoLongDate(now);
 }
 
 onMounted(() => {
@@ -346,7 +346,7 @@ onUnmounted(() => {
                     {{ log.memberName }}
                   </button>
                   <p class="text-[10px] text-neutral-400 font-mono">
-                    {{ new Date(log.scannedAt).toLocaleTimeString() }} • {{ log.memberNumber }}
+                    {{ formatMexicoTime(log.scannedAt) }} • {{ log.memberNumber }}
                   </p>
                 </div>
                 <span 

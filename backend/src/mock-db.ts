@@ -45,6 +45,13 @@ export function getMXTimestamp(dateInput: Date | string = new Date()): string {
   return localStr.replace(' ', 'T');
 }
 
+export function addDaysToDate(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day));
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 export function capitalizeWords(val: string | null | undefined): string {
   if (!val) return '';
   return val
@@ -177,6 +184,7 @@ export class MockDatabase implements OnModuleInit {
       user: process.env.DB_USER || 'gym_admin',
       password: process.env.DB_PASSWORD || 'gym_password_secure_local_188',
       database: process.env.DB_NAME || 'goldengym_access',
+      options: '-c timezone=America/Mexico_City',
     });
   }
 
@@ -289,16 +297,13 @@ export class MockDatabase implements OnModuleInit {
           if (member && member.noPaymentRequired) {
             const plan = this.plans.find((p) => p.id === m.planId);
             if (plan) {
-              const prevStart = new Date(m.startDate + 'T00:00:00');
-              const prevEnd = new Date(m.endDate + 'T00:00:00');
+              const prevStart = new Date(`${m.startDate}T00:00:00Z`);
+              const prevEnd = new Date(`${m.endDate}T00:00:00Z`);
               const calculatedDays = Math.round((prevEnd.getTime() - prevStart.getTime()) / (1000 * 60 * 60 * 24));
               const durationDays = calculatedDays > 0 ? calculatedDays : plan.durationDays;
 
               const startDateStr = m.endDate;
-              const startVal = new Date(startDateStr + 'T00:00:00');
-              const endVal = new Date(startVal.getTime());
-              endVal.setDate(endVal.getDate() + durationDays);
-              const endDateStr = getMXDate(endVal);
+              const endDateStr = addDaysToDate(startDateStr, durationDays);
 
               const newMs = {
                 id: randomUUID(),

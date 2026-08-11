@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { MockDatabase, getMXDate } from '../mock-db';
+import { MockDatabase, addDaysToDate, getMXDate } from '../mock-db';
+import { resolveMembershipForAccess } from '../memberships/membership-resolver';
 
 @Injectable()
 export class AnalyticsService {
@@ -17,17 +18,18 @@ export class AnalyticsService {
     return lastMembershipsMap;
   }
 
-  getSummary() {
+  getSummary(roleName?: string) {
     const todayStr = getMXDate();
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const sevenDaysFromNowStr = getMXDate(sevenDaysFromNow);
+    const sevenDaysFromNowStr = addDaysToDate(todayStr, 7);
 
-    const activeMembers = this.db.members.filter((m) => m.isActive).length;
-
-    // Filter memberships list using only the last membership status of each member
+    // Resolve the membership that is actually valid today. A future renewal must
+    // not hide a currently active membership.
     const lastMemberships = Array.from(this.getLastMembershipPerMember().values());
-    const activeMembershipsList = lastMemberships.filter((m) => m.status === 'ACTIVE');
+    const activeMembershipsList = this.db.members
+      .map((member) => resolveMembershipForAccess(this.db.memberships, member.id, todayStr))
+      .filter((membership) => membership?.status === 'ACTIVE'
+        && membership.startDate <= todayStr && membership.endDate > todayStr);
+    const activeMembers = activeMembershipsList.length;
     
     const expiringMemberships = activeMembershipsList.filter(
       (m) => m.endDate > todayStr && m.endDate <= sevenDaysFromNowStr,
@@ -51,7 +53,7 @@ export class AnalyticsService {
       m.registrationDate.startsWith(currentMonth),
     ).length;
 
-    return {
+    const summary: Record<string, number> = {
       activeMembers,
       expiringMemberships,
       expiredMemberships,
@@ -59,23 +61,23 @@ export class AnalyticsService {
       monthlyRevenue: monthlyRevenueCents / 100, // en MXN
       newMembersThisMonth,
     };
+    if (roleName === 'administrator') delete summary.monthlyRevenue;
+    return summary;
   }
 
-  getCharts() {
+  getCharts(roleName?: string) {
     // 1. Accesos diarios de la semana actual (Lunes a Domingo)
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    const todayStr = getMXDate();
+    const [year, month, day] = todayStr.split('-').map(Number);
+    const today = new Date(Date.UTC(year, month - 1, day));
+    const dayOfWeek = today.getUTCDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
     const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - distanceToMonday);
-    monday.setHours(0, 0, 0, 0);
+    const mondayStr = addDaysToDate(todayStr, -distanceToMonday);
 
     const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     const dailyAccesses = dayNames.map((name, index) => {
-      const dayDate = new Date(monday);
-      dayDate.setDate(monday.getDate() + index);
-      const dayStr = getMXDate(dayDate);
+      const dayStr = addDaysToDate(mondayStr, index);
 
       const count = this.db.accessLogs.filter((log) => {
         return log.scannedAt.startsWith(dayStr) && log.accessGranted;
@@ -85,7 +87,7 @@ export class AnalyticsService {
     });
 
     // 2. Ingresos mensuales del año actual (Pesos Mexicanos MXN)
-    const currentYear = new Date().getFullYear();
+    const currentYear = todayStr.slice(0, 4);
     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const monthlyRevenue = monthNames.map((name, index) => {
       const monthNumStr = String(index + 1).padStart(2, '0');
@@ -107,16 +109,24 @@ export class AnalyticsService {
       { name: 'Cancelada', value: lastMemberships.filter((m) => m.status === 'CANCELLED').length },
     ];
 
-    return {
+    const charts: Record<string, any[]> = {
       dailyAccesses,
       monthlyRevenue,
       distribution,
     };
+    if (roleName === 'administrator') delete charts.monthlyRevenue;
+    return charts;
   }
 
-  getRecentData() {
+  getRecentData(roleName?: string, userId?: string) {
     const recentAccesses = this.db.accessLogs.slice(0, 5);
-    const recentPayments = [...this.db.payments]
+    const currentMonth = getMXDate().slice(0, 7);
+    const visiblePayments = roleName === 'administrator'
+      ? this.db.payments.filter((payment) =>
+          payment.processedBy === userId && payment.paymentDate.startsWith(currentMonth),
+        )
+      : this.db.payments;
+    const recentPayments = [...visiblePayments]
       .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate))
       .slice(0, 5)
       .map((p) => {

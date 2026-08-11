@@ -2,6 +2,11 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useSyncStore } from '../stores/sync.store';
+import {
+  formatMexicoDate,
+  formatMexicoDateTime,
+  getMexicoDateString,
+} from '../utils/mexico-time';
 
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
@@ -68,16 +73,9 @@ const filteredPayments = computed(() => {
     }
 
     // 2. Date Range
-    if (dateFrom.value) {
-      const fromTime = new Date(dateFrom.value + 'T00:00:00').getTime();
-      const payTime = new Date(pay.paymentDate).getTime();
-      if (payTime < fromTime) return false;
-    }
-    if (dateTo.value) {
-      const toTime = new Date(dateTo.value + 'T23:59:59').getTime();
-      const payTime = new Date(pay.paymentDate).getTime();
-      if (payTime > toTime) return false;
-    }
+    const paymentDate = String(pay.paymentDate || '').slice(0, 10);
+    if (dateFrom.value && paymentDate < dateFrom.value) return false;
+    if (dateTo.value && paymentDate > dateTo.value) return false;
 
     // 3. Method
     if (selectedMethod.value !== 'ALL') {
@@ -102,11 +100,15 @@ const filteredPayments = computed(() => {
     } else if (sortField.value === 'MEMBER') {
       comparison = (a.memberName || '').localeCompare(b.memberName || '', 'es');
     } else {
-      comparison = new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime();
+      comparison = String(a.paymentDate || '').localeCompare(String(b.paymentDate || ''));
     }
     return sortDirection.value === 'ASC' ? comparison : -comparison;
   });
 });
+
+const filteredPaidTotal = computed(() => filteredPayments.value
+  .filter((payment) => payment.status === 'PAID')
+  .reduce((sum, payment) => sum + (payment.amount || 0), 0));
 
 const availablePlans = computed(() => {
   const plans = new Map<string, string>();
@@ -191,7 +193,7 @@ async function generateReport() {
   doc.setTextColor(100, 100, 100);
   doc.text('Madero 196, Centro, 76000 Santiago de Querétaro, Qro. • Tel: 446-117-7918', 36, 23);
 
-  const now = new Date().toLocaleString();
+  const now = formatMexicoDateTime(new Date());
   doc.text(`Fecha del Reporte: ${now}`, 36, 28);
   
   let filterStr = `Filtros aplicados: `;
@@ -261,7 +263,7 @@ async function generateReport() {
 
     doc.text(pay.paymentMethodName || 'N/A', 105, y);
 
-    const payDate = pay.paymentDate ? new Date(pay.paymentDate).toLocaleDateString() : 'N/A';
+    const payDate = pay.paymentDate ? formatMexicoDate(pay.paymentDate) : 'N/A';
     doc.text(payDate, 135, y);
 
     const amountMXN = pay.amount / 100;
@@ -280,8 +282,7 @@ async function generateReport() {
   doc.text(`Total de registros: ${filteredPayments.value.length}`, 14, y);
   doc.text(`Ingreso Total Neto: $${totalSum.toFixed(2)} MXN`, 201, y, { align: 'right' });
 
-  const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const dateStr = getMexicoDateString();
   doc.save(`Reporte_Pagos_${dateStr}.pdf`);
 }
 </script>
@@ -441,7 +442,7 @@ async function generateReport() {
               </td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.planName || 'Sin plan' }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.paymentMethodName }}</td>
-              <td class="p-3 text-neutral-500">{{ new Date(pay.paymentDate).toLocaleString() }}</td>
+              <td class="p-3 text-neutral-500">{{ formatMexicoDateTime(pay.paymentDate) }}</td>
               <td class="p-3 text-neutral-600 font-medium">{{ pay.processedByName || 'Sistema' }}</td>
               <td class="p-3 font-bold text-neutral-900">${{ pay.amount / 100 }} MXN</td>
               <td class="p-3 text-right">
@@ -470,6 +471,16 @@ async function generateReport() {
               </td>
             </tr>
           </tbody>
+          <tfoot v-if="filteredPayments.length > 0">
+            <tr class="bg-neutral-50 border-t-2 border-neutral-200">
+              <td colspan="6" class="p-3 text-right text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                Total según filtros ({{ filteredPayments.length }} cobros)
+              </td>
+              <td colspan="2" class="p-3 text-right text-sm font-bold text-neutral-900">
+                ${{ (filteredPaidTotal / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} MXN
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

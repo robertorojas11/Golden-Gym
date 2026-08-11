@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { formatMexicoTime } from '../utils/mexico-time';
 
 export interface SyncEvent {
   id: string;
@@ -53,7 +54,7 @@ export const useSyncStore = defineStore('sync', () => {
     const event: SyncEvent = {
       id: generateId(),
       message,
-      timestamp: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      timestamp: formatMexicoTime(new Date()),
     };
     syncEvents.value.unshift(event);
     if (syncEvents.value.length > 10) {
@@ -63,7 +64,7 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   function registerModification(type: string, description: string) {
-    const timestamp = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timestamp = formatMexicoTime(new Date());
     
     if (!isOnline.value) {
       const mod: PendingModification = {

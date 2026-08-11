@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { formatMexicoDateTime } from './mexico-time';
 
 export async function downloadPaymentReceipt(payment: any, member: any, planName: string, beneficiaries?: string[]) {
   const doc = new jsPDF({
@@ -50,11 +51,7 @@ export async function downloadPaymentReceipt(payment: any, member: any, planName
   doc.setFontSize(7.5);
   doc.text(`Folio Ref: ${payment.referenceNumber}`, 8, 42);
   
-  const dateObj = payment.paymentDate ? new Date(payment.paymentDate) : new Date();
-  const paymentDateStr = dateObj.toLocaleString('es-MX', {
-    dateStyle: 'short',
-    timeStyle: 'short'
-  });
+  const paymentDateStr = formatMexicoDateTime(payment.paymentDate || new Date());
   doc.text(`Fecha: ${paymentDateStr}`, 8, 47);
   
   // Client details

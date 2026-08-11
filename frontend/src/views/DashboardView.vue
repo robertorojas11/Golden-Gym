@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useMemberStore } from '../stores/member.store';
 import { downloadPaymentReceipt } from '../utils/pdf-receipt';
+import { formatMexicoDateTime } from '../utils/mexico-time';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -23,6 +24,21 @@ const charts = ref({
   monthlyRevenue: [] as any[],
   distribution: [] as any[],
 });
+
+const canViewRevenue = computed(() => ['owner', 'viewer'].includes(authStore.userRole));
+
+const revenueAxisMax = computed(() => {
+  const maximum = Math.max(0, ...(charts.value.monthlyRevenue || []).map((item) => Number(item.amount) || 0));
+  if (maximum === 0) return 10000;
+  const target = maximum * 1.1;
+  const magnitude = 10 ** Math.floor(Math.log10(target));
+  const normalized = target / magnitude;
+  const step = [1, 2, 5, 10].find((candidate) => candidate >= normalized) || 10;
+  return step * magnitude;
+});
+
+const revenueAxisTicks = computed(() => [1, 0.75, 0.5, 0.25, 0]
+  .map((ratio) => revenueAxisMax.value * ratio));
 
 const recent = ref({
   recentAccesses: [] as any[],
@@ -495,7 +511,7 @@ function formatNumber(val: number) {
     </div>
 
     <!-- Widgets Section -->
-    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 gap-4" :class="canViewRevenue ? 'lg:grid-cols-6' : 'lg:grid-cols-5'">
       <div 
         @click="router.push('/members?status=ACTIVE')"
         class="premium-card p-4 bg-white cursor-pointer hover:border-neutral-300 transition-all hover:shadow-md"
@@ -525,7 +541,7 @@ function formatNumber(val: number) {
         <p class="text-2xl font-bold text-emerald-500 mt-2">{{ summary.todayAccesses }}</p>
       </div>
 
-      <div class="premium-card p-4 bg-white col-span-2 md:col-span-1">
+      <div v-if="canViewRevenue" class="premium-card p-4 bg-white col-span-2 md:col-span-1">
         <p class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Ingreso Mensual</p>
         <p class="text-2xl font-bold text-neutral-900 mt-2">${{ summary.monthlyRevenue }} MXN</p>
       </div>
@@ -537,7 +553,7 @@ function formatNumber(val: number) {
     </div>
 
     <!-- Charts Grid (SVG Based) -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 gap-6" :class="canViewRevenue ? 'lg:grid-cols-3' : 'lg:grid-cols-2'">
       
       <!-- Chart 1: Accesses per Day -->
       <div class="premium-card p-6 bg-white">
@@ -597,7 +613,7 @@ function formatNumber(val: number) {
       </div>
 
       <!-- Chart 2: Monthly Revenue -->
-      <div class="premium-card p-6 bg-white">
+      <div v-if="canViewRevenue" class="premium-card p-6 bg-white">
         <h3 class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Ingreso Mensual (MXN)</h3>
         <div class="relative flex flex-col h-44 mt-4">
           <!-- Y-Axis label -->
@@ -605,12 +621,8 @@ function formatNumber(val: number) {
           
           <div class="flex flex-1 items-stretch pt-2">
             <!-- Y-Axis Ticks -->
-            <div class="flex flex-col justify-between text-[9px] text-neutral-500 pr-2 pb-6 select-none w-12 text-right font-mono">
-              <span>$10,000</span>
-              <span>$7,500</span>
-              <span>$5,000</span>
-              <span>$2,500</span>
-              <span>$0</span>
+            <div class="flex flex-col justify-between text-[9px] text-neutral-500 pr-2 pb-6 select-none w-16 text-right font-mono">
+              <span v-for="tick in revenueAxisTicks" :key="tick">${{ formatNumber(tick) }}</span>
             </div>
             
             <!-- Chart Grid & Bars -->
@@ -642,7 +654,7 @@ function formatNumber(val: number) {
                 <!-- The actual bar -->
                 <div 
                   class="w-full max-w-[16px] bg-gradient-to-t from-red-950 to-[#FA2F2A] group-hover:to-red-400 rounded-t transition-all duration-300"
-                  :style="{ height: `${(item.amount / 10000) * 100}%` }"
+                  :style="{ height: `${Math.min(100, (item.amount / revenueAxisMax) * 100)}%` }"
                 ></div>
                 
                 <!-- X-Axis Label -->
@@ -700,7 +712,7 @@ function formatNumber(val: number) {
                     {{ log.memberName }}
                   </p>
                   <p class="text-[10px] text-neutral-400">
-                    {{ log.membershipType }} • {{ new Date(log.scannedAt).toLocaleString() }}
+                    {{ log.membershipType }} • {{ formatMexicoDateTime(log.scannedAt) }}
                   </p>
                 </div>
               </div>

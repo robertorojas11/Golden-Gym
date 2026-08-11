@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Membership, MembershipPlan, getMXDate } from '../mock-db';
+import { MockDatabase, Membership, MembershipPlan, addDaysToDate, getMXDate } from '../mock-db';
 import { resolveMembershipForAccess } from './membership-resolver';
 
 @Injectable()
@@ -62,6 +62,18 @@ export class MembershipsService {
       throw new NotFoundException('Membership plan not found');
     }
 
+    const requestedAdditionalIds = [...new Set(additionalMemberIds || [])];
+    if (requestedAdditionalIds.includes(memberId)) {
+      throw new BadRequestException('El titular no puede agregarse también como beneficiario.');
+    }
+    if (!plan.isGroup && requestedAdditionalIds.length > 0) {
+      throw new BadRequestException('Este plan no admite beneficiarios adicionales.');
+    }
+    const beneficiaryLimit = Math.max(0, (plan.maxMembers || 1) - 1);
+    if (requestedAdditionalIds.length > beneficiaryLimit) {
+      throw new BadRequestException(`Este plan admite un máximo de ${beneficiaryLimit} beneficiario(s).`);
+    }
+
     // An active membership is valid input for a renewal. If no custom date is
     // supplied, the new membership is scheduled immediately after it ends.
     const todayStr = getMXDate();
@@ -77,10 +89,15 @@ export class MembershipsService {
 
     // Additional members may keep their current active plan when renewing the
     // same group. They cannot be moved from an unrelated active membership.
-    if (additionalMemberIds && additionalMemberIds.length > 0) {
-      for (const addId of additionalMemberIds) {
+    if (requestedAdditionalIds.length > 0) {
+      for (const addId of requestedAdditionalIds) {
+        const addMember = this.db.members.find((member) => member.id === addId);
+        if (!addMember || !addMember.isActive) {
+          throw new BadRequestException('Todos los beneficiarios deben ser miembros vigentes.');
+        }
         const activeAdd = this.db.memberships.find(
-          (m) => m.memberId === addId && m.status === 'ACTIVE' && m.endDate > todayStr
+          (m) => m.memberId === addId && m.status === 'ACTIVE'
+            && m.startDate <= todayStr && m.endDate > todayStr
         );
         if (activeAdd) {
           const activeParent = activeAdd.parentMembershipId
@@ -90,7 +107,6 @@ export class MembershipsService {
             (m) => m.memberId === memberId && m.status === 'ACTIVE' && m.endDate > todayStr
           );
           if (activeParent?.id === mainActive?.id) continue;
-          const addMember = this.db.members.find(m => m.id === addId);
           const addName = addMember ? `${addMember.firstName} ${addMember.lastName}` : addId;
           throw new BadRequestException(`El miembro adicional ${addName} ya tiene un plan activo. No se puede vincular a otro plan.`);
         }
@@ -107,8 +123,8 @@ export class MembershipsService {
     }
 
     // Cancel any existing PENDING memberships for additional members
-    if (additionalMemberIds && additionalMemberIds.length > 0) {
-      for (const addId of additionalMemberIds) {
+    if (requestedAdditionalIds.length > 0) {
+      for (const addId of requestedAdditionalIds) {
         const existingPendingAdd = this.db.memberships.filter(
           (m) => m.memberId === addId && m.status === 'PENDING'
         );
@@ -128,10 +144,6 @@ export class MembershipsService {
       startDateStr = active.endDate;
     }
 
-    const startDateVal = new Date(startDateStr + 'T00:00:00');
-    const endDateVal = new Date(startDateVal.getTime());
-    endDateVal.setDate(endDateVal.getDate() + plan.durationDays);
-
     // Auto-activate ONLY if the custom start date is BEFORE the system start date (2026-06-29) - i.e. migrated old members
     const isMigratedDate = startDateStr < '2026-06-29';
     const mainMember = this.db.members.find((m) => m.id === memberId);
@@ -143,7 +155,7 @@ export class MembershipsService {
       planId,
       planName: plan.name,
       startDate: startDateStr,
-      endDate: getMXDate(endDateVal),
+      endDate: addDaysToDate(startDateStr, plan.durationDays),
       status: (isMigratedDate || noPaidRequired || inheritedDiscount >= plan.price) ? 'ACTIVE' : 'PENDING',
       discount: Math.min(inheritedDiscount, plan.price),
     };
@@ -154,9 +166,8 @@ export class MembershipsService {
     const beneficiaryIds: string[] = [];
 
     // Save child memberships if it's a group plan
-    if (plan.isGroup && additionalMemberIds && additionalMemberIds.length > 0) {
-      const limit = (plan.maxMembers || 1) - 1;
-      const selectedAddIds = additionalMemberIds.slice(0, limit);
+    if (plan.isGroup && requestedAdditionalIds.length > 0) {
+      const selectedAddIds = requestedAdditionalIds.slice(0, beneficiaryLimit);
       for (const addId of selectedAddIds) {
         beneficiaryIds.push(addId);
         const childMs: Membership = {

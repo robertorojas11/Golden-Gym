@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { MockDatabase, Payment, Membership, getMXTimestamp } from '../mock-db';
+import { MockDatabase, Payment, Membership, getMXDate, getMXTimestamp } from '../mock-db';
 
 @Injectable()
 export class PaymentsService {
@@ -171,5 +171,16 @@ export class PaymentsService {
 
   findByUser(userId: string): any[] {
     return this.findAll().filter((p) => p.processedBy === userId);
+  }
+
+  filterForUserAndCurrentMonth(payments: any[], userId: string): any[] {
+    const currentMonth = getMXDate().slice(0, 7);
+    return payments.filter((payment) =>
+      payment.processedBy === userId && payment.paymentDate.startsWith(currentMonth),
+    );
+  }
+
+  findByUserForCurrentMonth(userId: string): any[] {
+    return this.filterForUserAndCurrentMonth(this.findAll(), userId);
   }
 }
